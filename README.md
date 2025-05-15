@@ -171,6 +171,38 @@ For more details on the `partyCreateWorkflowInput`, visit the [Input.PartyCreate
 <details>
 <summary>
 
+### Creating an Order
+
+</summary>
+
+To create an order from a landed cost calculation, use the `orderCreate` method. This method requires a `credentialToken` and a `variables` object containing the `input` object with the `landedCostId` and other order details.
+
+#### Example:
+
+```typescript
+const variables = {
+  input: {
+    accountOrderNumber: 'order-123',
+    currencyCode: 'USD',
+    landedCostId: 'landed_cost_123',
+  },
+};
+
+const { errors, json } = await zonosClient.orderCreate({
+  credentialToken,
+  variables,
+});
+```
+
+#### Zonos Graph Documentation:
+
+For more details on the `orderCreate` mutation and its parameters, visit the [OrderCreateInput](https://zonos.com/developer/types/OrderCreateInput) documentation.
+
+</details>
+
+<details>
+<summary>
+
 ## Zonos Client optional parameters
 
 </summary>

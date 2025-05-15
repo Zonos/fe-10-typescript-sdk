@@ -4,6 +4,8 @@ import type {
   ZonosClassificationsCalculateMutationVariables,
   ZonosFullLandedCostMutationVariables,
   ZonosLandedCostOnlyMutationVariables,
+  ZonosMutationOrderCreateArgs,
+  ZonosOrderCreateInput,
 } from './types/generated/graphql.customer.types';
 
 /**
@@ -211,5 +213,33 @@ export const zonosClient = {
     zonosClientRequest({
       ...params,
       operationName: 'landedCostOnly',
+    }),
+  /**
+   * @description
+   * This mutation is used to create an order from a landed cost calculation.
+   * @example
+   * const variables: ZonosMutationOrderCreateArgs = {
+   *   input: {
+   *     accountOrderNumber: 'order-123',
+   *     currencyCode: 'USD',
+   *     landedCostId: 'landed_cost_123',
+   *   },
+   * };
+   *
+   * const { errors, json } = await zonosClient.orderCreate({
+   *   credentialToken: 'test_token',
+   *   variables,
+   * });
+   */
+  orderCreate: async (params: {
+    credentialToken: string;
+    customFetch?: typeof fetch;
+    customUrl?: string;
+    headers?: HeadersInit;
+    variables: ZonosMutationOrderCreateArgs;
+  }) =>
+    zonosClientRequest({
+      ...params,
+      operationName: 'orderCreate',
     }),
 };

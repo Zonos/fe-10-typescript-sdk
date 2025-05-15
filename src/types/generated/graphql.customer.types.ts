@@ -11141,6 +11141,49 @@ export const LandedCostOnlyDocument = `
 }
     `;
 
+export type ZonosOrderCreateMutationVariables = Exact<{
+  input: ZonosOrderCreateInput;
+}>;
+
+
+export type ZonosOrderCreateMutation = (
+  { __typename?: 'Mutation' }
+  & { orderCreate: (
+    { __typename?: 'Order' }
+    & Pick<ZonosOrder, 'id' | 'accountOrderNumber' | 'currencyCode' | 'grandTotal' | 'status' | 'createdAt' | 'updatedAt' | 'zonosOrderId'>
+    & { metadata: Maybe<Array<Maybe<(
+      { __typename?: 'OrderMetadata' }
+      & Pick<ZonosOrderMetadata, 'key' | 'value'>
+    )>>>, references: Maybe<Array<(
+      { __typename?: 'OrderReference' }
+      & Pick<ZonosOrderReference, 'key' | 'value'>
+    )>> }
+  ) }
+);
+
+export const OrderCreateDocument = `
+    mutation orderCreate($input: OrderCreateInput!) {
+  orderCreate(input: $input) {
+    id
+    accountOrderNumber
+    currencyCode
+    grandTotal
+    status
+    createdAt
+    updatedAt
+    metadata {
+      key
+      value
+    }
+    references {
+      key
+      value
+    }
+    zonosOrderId
+  }
+}
+    `;
+
 export type SdkFunctionWrapper = <T>(action: (requestHeaders?:Record<string, string>) => Promise<T>, operationName: string, operationType?: string, variables?: any) => Promise<T>;
 
 
@@ -11159,6 +11202,9 @@ export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = 
     },
     landedCostOnly(variables: ZonosLandedCostOnlyMutationVariables, requestHeaders?: GraphQLClientRequestHeaders): Promise<ZonosLandedCostOnlyMutation> {
       return withWrapper((wrappedRequestHeaders) => client.request<ZonosLandedCostOnlyMutation>(LandedCostOnlyDocument, variables, {...requestHeaders, ...wrappedRequestHeaders}), 'landedCostOnly', 'mutation', variables);
+    },
+    orderCreate(variables: ZonosMutationOrderCreateArgs, requestHeaders?: GraphQLClientRequestHeaders): Promise<ZonosOrderCreateMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ZonosOrderCreateMutation>(OrderCreateDocument, variables, {...requestHeaders, ...wrappedRequestHeaders}), 'orderCreate', 'mutation', variables);
     }
   };
 }
