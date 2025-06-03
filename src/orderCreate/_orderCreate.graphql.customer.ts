@@ -6,7 +6,6 @@ export const orderCreate = gql`
       id
       accountOrderNumber
       currencyCode
-      grandTotal
       status
       createdAt
       updatedAt
