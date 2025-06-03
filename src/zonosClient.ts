@@ -5,7 +5,6 @@ import type {
   ZonosFullLandedCostMutationVariables,
   ZonosLandedCostOnlyMutationVariables,
   ZonosMutationOrderCreateArgs,
-  ZonosOrderCreateInput,
 } from './types/generated/graphql.customer.types';
 
 /**
