@@ -68,7 +68,7 @@
     "typescript": "5.4.3",
     "typescript-transform-paths": "^3.4.7",
     "vite": "^5.2.14",
-    "vitest": "^1.4.0"
+    "vitest": "^1.6.1"
   },
   "scripts": {
     "lint": "eslint src --ext .ts",
