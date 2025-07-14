@@ -42,8 +42,8 @@ export const zonosClient = {
 
   /**
    * @description
-   * This mutation is used to create or update a cart, provide cart `id` in the input if you have one. 
-   * 
+   * This mutation is used to create or update a cart, provide cart `id` in the input if you have one.
+   *
    * **Note: The items array in the input should contain the complete list of all items that should be in the cart after the operation, not just the items being added or modified. This means you need to include all existing items plus any new ones you want to add.**
    * @example
    * const variables: ZonosCartUpsertMutationVariables = {
