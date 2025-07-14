@@ -1,5 +1,7 @@
 import { zonosClientRequest } from './_zonosClientRequest';
 import type {
+  ZonosCartByIdQueryVariables,
+  ZonosCartUpsertMutationVariables,
   ZonosCatalogItemQueryVariables,
   ZonosClassificationsCalculateMutationVariables,
   ZonosFullLandedCostMutationVariables,
@@ -17,6 +19,60 @@ import type {
  *  const { json, errors } = await zonosClient.catalogItem({ credentialToken, variables });
  */
 export const zonosClient = {
+  /**
+   * @description
+   * This query is used to fetch a cart by its id.
+   * @example
+   * const variables: ZonosCartByIdQueryVariables = {
+   *   id: 'cart_6568ba15-def6-44df-9731-a513f8f4f09b',
+   * };
+   *
+   * const { errors, json } = await zonosClient.cartById({
+   *   credentialToken: 'test_token',
+   *   variables,
+   * });
+   */
+  cartById: async (params: {
+    credentialToken: string;
+    customFetch?: typeof fetch;
+    customUrl?: string;
+    headers?: HeadersInit;
+    variables: ZonosCartByIdQueryVariables;
+  }) => zonosClientRequest({ ...params, operationName: 'cartById' }),
+
+  /**
+   * @description
+   * This mutation is used to create or update a cart, provide cart `id` in the input if you have one. 
+   * 
+   * **Note: The items array in the input should contain the complete list of all items that should be in the cart after the operation, not just the items being added or modified. This means you need to include all existing items plus any new ones you want to add.**
+   * @example
+   * const variables: ZonosCartUpsertMutationVariables = {
+   *   input: {
+   *     adjustments: [],
+   *     id: 'cart_6568ba15-def6-44df-9731-a513f8f4f09b',
+   *     items: [
+   *       {
+   *         amount: 2.99,
+   *         currencyCode: 'USD',
+   *         description: 'Zonos leather backpack',
+   *         name: 'Zonos leather backpack',
+   *         quantity: 2,
+   *       },
+   *   },
+   * };
+   *
+   * const { errors, json } = await zonosClient.cartUpsert({
+   *   credentialToken: 'test_token',
+   *   variables,
+   * });
+   */
+  cartUpsert: async (params: {
+    credentialToken: string;
+    customFetch?: typeof fetch;
+    customUrl?: string;
+    headers?: HeadersInit;
+    variables: ZonosCartUpsertMutationVariables;
+  }) => zonosClientRequest({ ...params, operationName: 'cartUpsert' }),
   /**
    * @description
    * This is used for legacy to fetch the catalog item.
@@ -126,7 +182,8 @@ export const zonosClient = {
    *     credentialToken: 'test_token',
    *     variables,
    *   });
-   */ fullLandedCost: async (params: {
+   */
+  fullLandedCost: async (params: {
     credentialToken: string;
     customFetch?: typeof fetch;
     customUrl?: string;

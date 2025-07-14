@@ -43,6 +43,7 @@ export type ZonosAmountDetail = {
   currencyCode: ZonosCurrencyCode;
   exchangeRateIds: Maybe<Array<Scalars['String']>>;
   id: Scalars['ID'];
+  orderChargeId: Maybe<Scalars['ID']>;
   targets: Array<ZonosAmountDetailTarget>;
   type: Maybe<ZonosAmountDetailSourceType>;
 };
@@ -906,6 +907,7 @@ export type ZonosCartConnection = {
   totalCount: Scalars['Int'];
 };
 
+/** Keep this in sync with CartUpsertInput, will deprecate */
 export type ZonosCartCreateInput = {
   /** A list of `CartAdjustment`s. */
   adjustments?: InputMaybe<Array<ZonosCartAdjustmentInput>>;
@@ -942,6 +944,13 @@ export type ZonosCartMetadataInput = {
   value: Scalars['String'];
 };
 
+/** Type of cart */
+export type ZonosCartType =
+  /** The `Cart` is a standard checkout cart. */
+  | 'CHECKOUT'
+  /** The `Cart` is a collect cart. */
+  | 'COLLECT';
+
 export type ZonosCartUpdateInput = {
   /** A list of `CartAdjustment`s. */
   adjustments?: InputMaybe<Array<ZonosCartAdjustmentInput>>;
@@ -953,6 +962,18 @@ export type ZonosCartUpdateInput = {
   itemsAdd?: InputMaybe<Array<ZonosItemInput>>;
   /** The `Item` to remove from the cart. */
   itemsRemove?: InputMaybe<Array<Scalars['ID']>>;
+  /** metadata for the cart */
+  metadata?: InputMaybe<Array<ZonosCartMetadataInput>>;
+};
+
+/** Keep this in sync with CartCreateInput */
+export type ZonosCartUpsertInput = {
+  /** A list of `CartAdjustment`s. */
+  adjustments?: InputMaybe<Array<ZonosCartAdjustmentInput>>;
+  /** CartId if it is upserting an existing `Cart` */
+  id?: InputMaybe<Scalars['ID']>;
+  /** The `Item` to add to the cart. */
+  items: Array<ZonosItemInput>;
   /** metadata for the cart */
   metadata?: InputMaybe<Array<ZonosCartMetadataInput>>;
 };
@@ -4380,6 +4401,8 @@ export type ZonosDuty = {
   __typename?: 'Duty';
   /** `Duty` amount in the currency specified by the `Root` object which owns this `LandedCost` */
   amount: Scalars['Decimal'];
+  /** Details associated with the `LandedCostDuty` */
+  amountDetails: Maybe<Array<ZonosLandedCostDutyAmountDetail>>;
   /** Currency the `Duty` amount is in. @deprecated use currencyCode instead. */
   currency: ZonosCurrencyCode;
   /** Currency the `Duty` amount is in. */
@@ -4646,6 +4669,8 @@ export type ZonosFee = {
   __typename?: 'Fee';
   /** `Fee` amount in the currency specified by the `Root` object which owns this `LandedCost` */
   amount: Scalars['Decimal'];
+  /** The amount details relating to the landed cost fee */
+  amountDetails: Maybe<Array<ZonosLandedCostFeeAmountDetail>>;
   /** Currency the `Fee` amount is in. @deprecated use currencyCode instead. */
   currency: ZonosCurrencyCode;
   /** Currency the `Fee` amount is in. */
@@ -6509,12 +6534,17 @@ export type ZonosLandedCost = {
   id: Scalars['ID'];
   /** Indicates if the landed cost is covered by the Zonos Landed Cost Guarantee */
   landedCostGuaranteeCode: ZonosLandedCostGuaranteeCode;
+  /** Links associated with the landedCost */
+  links: Maybe<Array<ZonosLandedCostLink>>;
   /** INCOTERM used to perform calculations */
   method: ZonosIncotermCode;
   /** Indicates whether this `LandedCost` was created in live or test mode */
   mode: ZonosMode;
   /** `Organization` that this `LandedCost` belongs to */
   organization: Scalars['ID'];
+  /** Payable Amount totals for duties, taxes, fees */
+  payableAmountSubtotals: Maybe<ZonosLandedCostAmountSubtotals>;
+  quoteType: Maybe<ZonosLandedCostQuoteType>;
   /** The taxes that should be remitted. */
   remittance: Array<ZonosLandedCostRemittance>;
   /** `Root` resource that this `LandedCost` belongs to */
@@ -6555,48 +6585,14 @@ export type ZonosLandedCostAmountSubtotals = {
   taxes: Scalars['Decimal'];
 };
 
-export type ZonosLandedCostBillingContextInput = {
-  /** The total amount for the transaction, including all items, shipping, duties, taxes, and fees. */
-  amount?: InputMaybe<Scalars['Decimal']>;
-  /** The currency of the lcgCalculationBase. */
-  currencyCode: ZonosCurrencyCode;
-  /** The total duty amount for the transaction. */
-  duty?: InputMaybe<Scalars['Decimal']>;
-  /** The total fees applied to the transaction. */
-  fees?: InputMaybe<Scalars['Decimal']>;
-  /** The grand total for the transaction, including all charges. */
-  grandTotal?: InputMaybe<Scalars['Decimal']>;
-  /** The guarantee code associated with the transaction. */
-  guaranteeCode?: InputMaybe<Scalars['String']>;
-  /** Indicates if the price is inclusive of duties, taxes, and fees. */
-  inclusivePrice?: InputMaybe<Scalars['Boolean']>;
-  /** The total value of all items in the transaction before shipping, duties, taxes, and fees. */
-  itemsTotal?: InputMaybe<Scalars['Decimal']>;
-  /** Indicates if the transaction is a Landed Cost Guarantee transaction. */
-  lcg?: InputMaybe<Scalars['Boolean']>;
-  /** The base amount used for Landed Cost Guarantee calculations. */
-  lcgCalculationBase: Scalars['Decimal'];
-  /** The merchant of record for the transaction. */
-  merchantOfRecord?: InputMaybe<Scalars['String']>;
-  /** The incoterm or shipping method used for the transaction (e.g., DDP, DAP). */
-  method?: InputMaybe<Scalars['String']>;
-  /** The payment processor used for the transaction (e.g., PayPal, Stripe). */
-  paymentProcessor?: InputMaybe<Scalars['String']>;
-  /** The quote type for the transaction. */
-  quoteType?: InputMaybe<ZonosLandedCostQuoteType>;
-  /** The total amount to be remitted for taxes. */
-  remittance?: InputMaybe<Scalars['Decimal']>;
-  /** The destination country code for the shipment. */
-  shipToCountry?: InputMaybe<ZonosCountryCode>;
-  /** The total shipping cost for the transaction. */
-  shipping?: InputMaybe<Scalars['Decimal']>;
-  /** The total tax amount for the transaction. */
-  tax?: InputMaybe<Scalars['Decimal']>;
-  /** The total of all Zonos fees for the transaction. */
-  zonosFeesTotal?: InputMaybe<Scalars['Decimal']>;
-  /** The total of Zonos payee-excluded fees for the transaction. */
-  zonosPayeeExcludedFeesTotal?: InputMaybe<Scalars['Decimal']>;
-};
+export type ZonosLandedCostAmountTargetType =
+  | 'BILLING_COMPANY'
+  | 'ITEM_PROVIDED'
+  | 'MERCHANT_BASE'
+  | 'MERCHANT_PROVIDED'
+  | 'MERCHANT_SETTLED'
+  | 'SHOPPER_PRESENTED'
+  | 'ZONOS_BASE';
 
 export type ZonosLandedCostBillingFeeAmountDetail = {
   __typename?: 'LandedCostBillingFeeAmountDetail';
@@ -6614,15 +6610,6 @@ export type ZonosLandedCostBillingFeeAmountDetail = {
 
 export type ZonosLandedCostBillingFeeContextInput = {
   paymentProcessor?: InputMaybe<ZonosLandedCostPaymentProcessor>;
-};
-
-export type ZonosLandedCostBillingFeesCalculateInput = {
-  /** The context of the charge. */
-  context?: InputMaybe<ZonosLandedCostBillingContextInput>;
-  /** The detail category IDs whitelist, if not provided all rules will be evaluated. */
-  detailCategoryIds?: InputMaybe<Array<ZonosLandedCostBillingRuleDetailCategoryIdCreateType>>;
-  /** The detail category IDs that must contain one of the provided strings, if not provided all rules will be evaluated. */
-  detailCategoryIdsContain?: InputMaybe<Array<Scalars['String']>>;
 };
 
 export type ZonosLandedCostBillingPartyType =
@@ -6656,6 +6643,8 @@ export type ZonosLandedCostBillingRuleDetailCategoryIdCreateType =
   | 'CHECKOUT_MERCHANT_PROCESSING'
   | 'CHECKOUT_SHIPPING_IGLOBAL'
   | 'CHECKOUT_TRANSACTION_PERCENT'
+  | 'COLLECT_ORDER'
+  | 'COLLECT_PERCENT'
   | 'GUARANTEE_ORDER'
   | 'SHOPIFY_GUARANTEE_ORDER'
   | 'SHOPIFY_GUARANTEE_ORDER_LEGACY'
@@ -6716,6 +6705,27 @@ export type ZonosLandedCostCreateInput = {
   taxes?: InputMaybe<Array<ZonosTaxInput>>;
 };
 
+/** Represents the Detail associated with the `LandedCostDuty` */
+export type ZonosLandedCostDutyAmountDetail = {
+  __typename?: 'LandedCostDutyAmountDetail';
+  /** Amount of the `LandedCostDutyAmountDetail` */
+  amount: Maybe<Scalars['Decimal']>;
+  /** The unrounded amount of the `LandedCostDutyAmountDetail` */
+  amountUnrounded: Maybe<Scalars['Decimal']>;
+  /** The date and time the `LandedCostDutyAmountDetail` was created */
+  createdAt: Scalars['DateTime'];
+  /** The currency the amount of the `LandedCostDutyAmountDetail` is in */
+  currencyCode: Maybe<ZonosCurrencyCode>;
+  /** The list of exchange rates ids associated with the `LandedCostDutyAmountDetail` */
+  exchangeRateIds: Maybe<Array<Scalars['ID']>>;
+  /** The id of the `LandedCostDutyAmountDetail` */
+  id: Scalars['ID'];
+  /** What the `LandedCostDutyAmountDetail` is for */
+  targets: Maybe<Array<ZonosLandedCostAmountTargetType>>;
+  /** The type of the `LandedCostDutyAmountDetail` */
+  type: Maybe<Scalars['String']>;
+};
+
 export type ZonosLandedCostEdge = {
   __typename?: 'LandedCostEdge';
   cursor: Maybe<Scalars['String']>;
@@ -6728,6 +6738,27 @@ export type ZonosLandedCostEndUse =
   /** Item quoted will not be resold upon import (e.g. personal use, gift) */
   | 'NOT_FOR_RESALE';
 
+/** Represents the Detail associated with the `LandedCostFee` */
+export type ZonosLandedCostFeeAmountDetail = {
+  __typename?: 'LandedCostFeeAmountDetail';
+  /** Amount of the `LandedCostFeeAmountDetail` */
+  amount: Maybe<Scalars['Decimal']>;
+  /** The unrounded amount of the `LandedCostFeeAmountDetail` */
+  amountUnrounded: Maybe<Scalars['Decimal']>;
+  /** The date and time the `LandedCostFeeAmountDetail` was created */
+  createdAt: Scalars['DateTime'];
+  /** The currency the amount of the `LandedCostFeeAmountDetail` is in */
+  currencyCode: Maybe<ZonosCurrencyCode>;
+  /** The list of exchange rates ids associated with the `LandedCostFeeAmountDetail` */
+  exchangeRateIds: Maybe<Array<Scalars['ID']>>;
+  /** The id of the `LandedCostFeeAmountDetail` */
+  id: Scalars['ID'];
+  /** What the `LandedCostDutyAmountDetail` is for */
+  targets: Maybe<Array<ZonosLandedCostAmountTargetType>>;
+  /** The type of the `LandedCostFeeAmountDetail` */
+  type: Maybe<Scalars['String']>;
+};
+
 /** make sure to update the legacy orderService if you add new values here */
 export type ZonosLandedCostFeeType =
   | 'ADDITIONAL_TARIFF_LINES'
@@ -6736,6 +6767,8 @@ export type ZonosLandedCostFeeType =
   | 'BROKERAGE_FEE'
   | 'BUFFER'
   | 'COD'
+  | 'COLLECT_ORDER'
+  | 'COLLECT_PERCENT'
   | 'COUNTRY'
   | 'CURRENCY_CONVERSION_FEE'
   | 'DDP_SERVICE_FEE'
@@ -6770,6 +6803,7 @@ export type ZonosLandedCostFilter = {
 
 /** any enum added here also needs to be added in orderService legacy. bounce orderDgs add logic to feeContext accordingly and landedCostBillingRuleContext */
 export type ZonosLandedCostGuaranteeCode =
+  | 'COLLECT_REMITTANCE'
   /** Zonos covers any landed cost discrepancies and this quote has inclusive price items in it. */
   | 'INCLUSIVE_PRICE'
   /** No guarantee */
@@ -6799,6 +6833,14 @@ export type ZonosLandedCostInput = {
   tariffRate: ZonosLandedCostTariffRate;
 };
 
+/** Represents the links associated with the LandedCost */
+export type ZonosLandedCostLink = {
+  __typename?: 'LandedCostLink';
+  key: Scalars['String'];
+  /** Url of the link */
+  url: Scalars['String'];
+};
+
 /** The method to use for the landed cost calculation. */
 export type ZonosLandedCostMethod =
   /** Only provide a DAP quote */
@@ -6817,14 +6859,8 @@ export type ZonosLandedCostPaymentProcessor =
 export type ZonosLandedCostQuoteType =
   /** this is the default quote type */
   | 'API'
-  /** this quote is for auditing purpose */
-  | 'AUDITING'
-  /** Regular checkout quote. */
-  | 'CHECKOUT'
-  /** quote generated from hello. */
-  | 'HELLO'
-  /** this quote is an inclusive quote associated with a catalogItem */
-  | 'INCLUSIVE_PRICE';
+  /** quote generated to create a collect cart */
+  | 'COLLECT';
 
 /** Represents the tax remittance values required by specific entities. */
 export type ZonosLandedCostRemittance = {
@@ -6851,6 +6887,27 @@ export type ZonosLandedCostTariffRate =
   /** Zonos will attempt to calculate best tariff rate for provided HS code (recomended) */
   | 'ZONOS_PREFERRED';
 
+/** Represents the Detail associated with the `LandedCostTax` */
+export type ZonosLandedCostTaxAmountDetail = {
+  __typename?: 'LandedCostTaxAmountDetail';
+  /** Amount of the `LandedCostTaxAmountDetail` */
+  amount: Maybe<Scalars['Decimal']>;
+  /** The unrounded amount of the `LandedCostTaxAmountDetail` */
+  amountUnrounded: Maybe<Scalars['Decimal']>;
+  /** The date and time the `LandedCostTaxAmountDetail` was created */
+  createdAt: Scalars['DateTime'];
+  /** The currency the amount of the `LandedCostTaxAmountDetail` is in */
+  currencyCode: Maybe<ZonosCurrencyCode>;
+  /** The list of exchange rates ids associated with the `LandedCostTaxAmountDetail` */
+  exchangeRateIds: Maybe<Array<Scalars['ID']>>;
+  /** The id of the `LandedCostTaxAmountDetail` */
+  id: Scalars['ID'];
+  /** What the `LandedCostTaxAmountDetail` is for */
+  targets: Maybe<Array<ZonosLandedCostAmountTargetType>>;
+  /** The type of the `LandedCostTaxAmountDetail` */
+  type: Maybe<Scalars['String']>;
+};
+
 export type ZonosLandedCostWeightUnit =
   | 'CG'
   | 'CT'
@@ -6870,6 +6927,8 @@ export type ZonosLandedCostWorkFlowInput = {
   endUse: ZonosLandedCostEndUse;
   /** @Deprecated use calculationMethod */
   method?: InputMaybe<ZonosIncotermCode>;
+  /** The type of quote to generate. */
+  quoteType?: InputMaybe<ZonosLandedCostQuoteType>;
   /** Id of the landed cost associated with a source LCG transaction. This is provided only when changes are required to an LCG transaction that would require a re-calculation of duties, taxes and fees. The source landed cost must fall within the guarantee window (default: 90 days) and have the same parties and currencies as the re-calculated landed cost. */
   sourceLandedCostId?: InputMaybe<Scalars['String']>;
   /** Indicates what method Zonos should use to calculate the tariff rates for this quote */
@@ -7675,6 +7734,8 @@ export type ZonosMutation = {
   cartCreate: ZonosCart;
   /** Update a cart with new items or remove items */
   cartUpdate: ZonosCart;
+  /** Upsert a cart */
+  cartUpsert: ZonosCart;
   /** Use the current state of the cart in the workflow. */
   cartWorkflow: ZonosCart;
   /** Update the CartonizationSettings for the callers organization */
@@ -7783,8 +7844,6 @@ export type ZonosMutation = {
   orderUpdateAccountOrderNumber: ZonosOrder;
   /** Update the amount subtotals of an order */
   orderUpdateAmountSubtotalDetails: ZonosOrder;
-  /** Update the amount subtotals of an order */
-  orderUpdateAmountSubtotals: Array<ZonosOrder>;
   /** Update a note on an order */
   orderUpdateNote: Maybe<ZonosOrder>;
   /** Update the destination or payor party information on an order */
@@ -7874,6 +7933,11 @@ export type ZonosMutationCartCreateArgs = {
 
 export type ZonosMutationCartUpdateArgs = {
   input: ZonosCartUpdateInput;
+};
+
+
+export type ZonosMutationCartUpsertArgs = {
+  input: ZonosCartUpsertInput;
 };
 
 
@@ -8158,11 +8222,6 @@ export type ZonosMutationOrderUpdateAmountSubtotalDetailsArgs = {
 };
 
 
-export type ZonosMutationOrderUpdateAmountSubtotalsArgs = {
-  input: Array<ZonosOrderUpdateAmountSubtotalsInput>;
-};
-
-
 export type ZonosMutationOrderUpdateNoteArgs = {
   input: ZonosOrderNoteUpdateInput;
 };
@@ -8330,6 +8389,8 @@ export type ZonosOrder = {
   accountOrderNumber: Maybe<Scalars['String']>;
   /** Subtotal amounts of how the `Order` amount was calculated. */
   amountSubtotals: ZonosAmountSubtotals;
+  /** Details around amount subtotals */
+  amountSubtotalsDetails: Maybe<Array<ZonosAmountDetail>>;
   /** The `Cartons` that are included in the `Order`. */
   cartons: Maybe<Array<ZonosCarton>>;
   checkoutSession: Maybe<ZonosCheckoutSession>;
@@ -8419,6 +8480,7 @@ export type ZonosOrderConnection = {
   edges: Maybe<Array<Maybe<ZonosOrderEdge>>>;
   /** Field pageInfo */
   pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
 };
 
 export type ZonosOrderCreateInput = {
@@ -8751,6 +8813,11 @@ export type ZonosOrderTransactionBillingMethod =
   | 'BILLING_DGS'
   | 'LEGACY';
 
+export type ZonosOrderType =
+  | 'API'
+  | 'CHECKOUT'
+  | 'COLLECT';
+
 export type ZonosOrderUpdateAccountOrderNumberInput = {
   /** The order number from the `Organization`. */
   accountOrderNumber: Scalars['String'];
@@ -8773,11 +8840,6 @@ export type ZonosOrderUpdateAmountSubtotalDetailInput = {
   targets?: InputMaybe<Array<ZonosAmountDetailTarget>>;
   /** The subtotal amounts of how the `Order` amount was calculated. */
   type?: InputMaybe<ZonosAmountDetailSourceType>;
-};
-
-export type ZonosOrderUpdateAmountSubtotalsInput = {
-  grandTotal?: InputMaybe<Scalars['Decimal']>;
-  orderId: Scalars['ID'];
 };
 
 export type ZonosOrderUpdateInput = {
@@ -9668,6 +9730,8 @@ export type ZonosQuery = {
   catalogItems: Maybe<ZonosCatalogItemConnection>;
   /** Returns a `CheckoutSession` by ID. */
   checkoutSession: ZonosCheckoutSession;
+  /** Returns a `CheckoutSession` by LandedCost ID. */
+  checkoutSessionByLandedCostId: ZonosCheckoutSession;
   /** Returns a `Classification` resource by ID. */
   classification: Maybe<ZonosClassification>;
   /** Returns a list of `Classification` resources. */
@@ -9952,6 +10016,12 @@ export type ZonosQueryCatalogItemsArgs = {
 
 /** interface Node { id: ID! } */
 export type ZonosQueryCheckoutSessionArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCheckoutSessionByLandedCostIdArgs = {
   id: Scalars['ID'];
 };
 
@@ -10838,6 +10908,8 @@ export type ZonosShipmentCarton = ZonosNode & {
   /** A unique identifier for this ShipmentCarton */
   id: Scalars['ID'];
   label: Maybe<ZonosLabel>;
+  /** List of the original order item ids to use as a comparator for this ShipmentCarton */
+  shipmentOrderItems: Array<ZonosShipmentOrderItem>;
   /** Signature option type to apply at the package level. */
   signatureOptionType: Maybe<ZonosSignatureOptionType>;
   /** A list of `ShipmentCartonSpecialService`s that apply to this `ShipmentCarton` */
@@ -11073,6 +11145,8 @@ export type ZonosShipmentEdge = {
 };
 
 export type ZonosShipmentFilter = {
+  /** Return `Shipment` resources created within a given date range */
+  between?: InputMaybe<ZonosDateTimeRange>;
   /** The ID of the `Order` this Shipment belongs to */
   orderId?: InputMaybe<Scalars['ID']>;
   /** A `ServiceLevel` ID that is used for a Shipment */
@@ -11083,6 +11157,14 @@ export type ZonosShipmentFilter = {
   shipmentType?: InputMaybe<ZonosShipmentType>;
   /** The tracking number associated with the Shipment */
   trackingNumber?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosShipmentOrderItem = {
+  __typename?: 'ShipmentOrderItem';
+  /** The ID of the `Item` on the `Order` */
+  originalOrderItemId: Scalars['ID'];
+  /** The quantity of this `Item` on the `Order` */
+  quantity: Scalars['Int'];
 };
 
 /** A Shipment rating quote that can be displayed. */
@@ -11124,6 +11206,8 @@ export type ZonosShipmentRating = {
   shipmentRatingCartons: Array<ZonosShipmentRatingCarton>;
   /** The `ShippingProfile` associated with the ShipmentRating. */
   shippingProfile: Maybe<ZonosShippingProfile>;
+  /** Detailed breakdown of subtotal amounts for the shipment rating, including currency-specific calculations for each component. */
+  subtotalAmountDetails: Array<ZonosShipmentRatingSubtotalAmountDetail>;
   /** When this ShipmentRating was most recently updated. */
   updatedAt: Scalars['DateTime'];
   /** The user who most recently updated the ShipmentRating. */
@@ -11703,6 +11787,8 @@ export type ZonosStoreFeeRuleDetailCategoryIdCreateType =
   | 'CHECKOUT_GUARANTEE_ORDER_LEGACY'
   | 'CHECKOUT_GUARANTEE_PERCENT'
   | 'COD'
+  | 'COLLECT_ORDER'
+  | 'COLLECT_PERCENT'
   | 'COUNTRY'
   | 'CROSS_DOCK_BUFFER'
   | 'CURRENCY_CONVERSION_FEE'
@@ -11764,6 +11850,8 @@ export type ZonosTax = {
   __typename?: 'Tax';
   /** `Tax` amount in the currency specified by the `Root` object which owns this `LandedCost` */
   amount: Scalars['Decimal'];
+  /** Details associated with the `LandedCostTax` */
+  amountDetails: Maybe<Array<ZonosLandedCostTaxAmountDetail>>;
   /** Currency the `Tax` amount is in. @deprecated use currencyCode instead. */
   currency: ZonosCurrencyCode;
   /** Currency the `Tax` amount is in. */
@@ -12325,6 +12413,7 @@ export type ZonosWebhookStatus =
   | 'ENABLED';
 
 export type ZonosWebhookType =
+  | 'INCLUSIVE_PRICE_CONFIGURATION_CHANGED'
   | 'INCLUSIVE_PRICE_SYNC_READY'
   | 'INVENTORY_CHECK'
   | 'INVENTORY_REFUND'
@@ -12390,6 +12479,106 @@ export type ZonosZonosStripeCharge = {
   /** The number of units that were billed for this ZonosStripeCharge */
   units: Scalars['Int'];
 };
+
+export type ZonosCartUpsertMutationVariables = Exact<{
+  input: ZonosCartUpsertInput;
+}>;
+
+
+export type ZonosCartUpsertMutation = (
+  { __typename?: 'Mutation' }
+  & { cartUpsert: (
+    { __typename?: 'Cart' }
+    & Pick<ZonosCart, 'id' | 'organizationId' | 'createdAt' | 'expiresAt'>
+    & { adjustments: Array<(
+      { __typename?: 'CartAdjustment' }
+      & Pick<ZonosCartAdjustment, 'amount' | 'currencyCode' | 'description' | 'productId' | 'sku' | 'type'>
+    )>, items: Array<(
+      { __typename?: 'Item' }
+      & Pick<ZonosItem, 'id' | 'amount' | 'name' | 'currencyCode' | 'description' | 'imageUrl' | 'quantity' | 'sku' | 'countryOfOrigin' | 'provinceOfOrigin' | 'productId'>
+      & { measurements: Maybe<Array<Maybe<(
+        { __typename?: 'ItemMeasurement' }
+        & Pick<ZonosItemMeasurement, 'source' | 'type' | 'unitOfMeasure' | 'value'>
+      )>>>, restriction: Maybe<(
+        { __typename?: 'RestrictedItem' }
+        & Pick<ZonosRestrictedItem, 'reason' | 'action'>
+      )>, attributes: Maybe<Array<Maybe<(
+        { __typename?: 'ItemAttribute' }
+        & Pick<ZonosItemAttribute, 'key' | 'value'>
+      )>>>, metadata: Maybe<Array<Maybe<(
+        { __typename?: 'ItemMetadata' }
+        & Pick<ZonosItemMetadata, 'key' | 'value'>
+      )>>> }
+    )>, metadata: Array<(
+      { __typename?: 'CartMetadata' }
+      & Pick<ZonosCartMetadata, 'key' | 'value'>
+    )> }
+  ) }
+);
+
+export type ZonosCartByIdQueryVariables = Exact<{
+  id: Scalars['ID'];
+}>;
+
+
+export type ZonosCartByIdQuery = (
+  { __typename?: 'Query' }
+  & { cart: Maybe<(
+    { __typename?: 'Cart' }
+    & Pick<ZonosCart, 'id' | 'organizationId' | 'createdAt' | 'expiresAt'>
+    & { adjustments: Array<(
+      { __typename?: 'CartAdjustment' }
+      & Pick<ZonosCartAdjustment, 'amount' | 'currencyCode' | 'description' | 'productId' | 'sku' | 'type'>
+    )>, items: Array<(
+      { __typename?: 'Item' }
+      & Pick<ZonosItem, 'id' | 'amount' | 'name' | 'currencyCode' | 'description' | 'imageUrl' | 'quantity' | 'sku' | 'countryOfOrigin' | 'provinceOfOrigin' | 'productId'>
+      & { measurements: Maybe<Array<Maybe<(
+        { __typename?: 'ItemMeasurement' }
+        & Pick<ZonosItemMeasurement, 'source' | 'type' | 'unitOfMeasure' | 'value'>
+      )>>>, restriction: Maybe<(
+        { __typename?: 'RestrictedItem' }
+        & Pick<ZonosRestrictedItem, 'reason' | 'action'>
+      )>, attributes: Maybe<Array<Maybe<(
+        { __typename?: 'ItemAttribute' }
+        & Pick<ZonosItemAttribute, 'key' | 'value'>
+      )>>>, metadata: Maybe<Array<Maybe<(
+        { __typename?: 'ItemMetadata' }
+        & Pick<ZonosItemMetadata, 'key' | 'value'>
+      )>>> }
+    )>, metadata: Array<(
+      { __typename?: 'CartMetadata' }
+      & Pick<ZonosCartMetadata, 'key' | 'value'>
+    )> }
+  )> }
+);
+
+export type ZonosCartFragmentFragment = (
+  { __typename?: 'Cart' }
+  & Pick<ZonosCart, 'id' | 'organizationId' | 'createdAt' | 'expiresAt'>
+  & { adjustments: Array<(
+    { __typename?: 'CartAdjustment' }
+    & Pick<ZonosCartAdjustment, 'amount' | 'currencyCode' | 'description' | 'productId' | 'sku' | 'type'>
+  )>, items: Array<(
+    { __typename?: 'Item' }
+    & Pick<ZonosItem, 'id' | 'amount' | 'name' | 'currencyCode' | 'description' | 'imageUrl' | 'quantity' | 'sku' | 'countryOfOrigin' | 'provinceOfOrigin' | 'productId'>
+    & { measurements: Maybe<Array<Maybe<(
+      { __typename?: 'ItemMeasurement' }
+      & Pick<ZonosItemMeasurement, 'source' | 'type' | 'unitOfMeasure' | 'value'>
+    )>>>, restriction: Maybe<(
+      { __typename?: 'RestrictedItem' }
+      & Pick<ZonosRestrictedItem, 'reason' | 'action'>
+    )>, attributes: Maybe<Array<Maybe<(
+      { __typename?: 'ItemAttribute' }
+      & Pick<ZonosItemAttribute, 'key' | 'value'>
+    )>>>, metadata: Maybe<Array<Maybe<(
+      { __typename?: 'ItemMetadata' }
+      & Pick<ZonosItemMetadata, 'key' | 'value'>
+    )>>> }
+  )>, metadata: Array<(
+    { __typename?: 'CartMetadata' }
+    & Pick<ZonosCartMetadata, 'key' | 'value'>
+  )> }
+);
 
 export type ZonosCatalogItemQueryVariables = Exact<{
   id: InputMaybe<Scalars['ID']>;
@@ -12581,7 +12770,71 @@ export type ZonosOrderCreateMutation = (
   )> }
 );
 
-
+export const CartFragmentFragmentDoc = `
+    fragment CartFragment on Cart {
+  id
+  organizationId
+  createdAt
+  expiresAt
+  adjustments {
+    amount
+    currencyCode
+    description
+    productId
+    sku
+    type
+  }
+  items {
+    id
+    amount
+    name
+    currencyCode
+    description
+    imageUrl
+    quantity
+    sku
+    countryOfOrigin
+    provinceOfOrigin
+    measurements {
+      source
+      type
+      unitOfMeasure
+      value
+    }
+    productId
+    restriction {
+      reason
+      action
+    }
+    attributes {
+      key
+      value
+    }
+    metadata {
+      key
+      value
+    }
+  }
+  metadata {
+    key
+    value
+  }
+}
+    `;
+export const CartUpsertDocument = `
+    mutation cartUpsert($input: CartUpsertInput!) {
+  cartUpsert(input: $input) {
+    ...CartFragment
+  }
+}
+    ${CartFragmentFragmentDoc}`;
+export const CartByIdDocument = `
+    query cartById($id: ID!) {
+  cart(id: $id) {
+    ...CartFragment
+  }
+}
+    ${CartFragmentFragmentDoc}`;
 export const CatalogItemDocument = `
     query catalogItem($id: ID, $productId: String, $sku: String) {
   catalogItem(id: $id, productId: $productId, sku: $sku) {
@@ -12817,6 +13070,12 @@ const defaultWrapper: SdkFunctionWrapper = (action, _operationName, _operationTy
 
 export function getSdk(client: GraphQLClient, withWrapper: SdkFunctionWrapper = defaultWrapper) {
   return {
+    cartUpsert(variables: ZonosCartUpsertMutationVariables, requestHeaders?: GraphQLClientRequestHeaders): Promise<ZonosCartUpsertMutation> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ZonosCartUpsertMutation>(CartUpsertDocument, variables, {...requestHeaders, ...wrappedRequestHeaders}), 'cartUpsert', 'mutation', variables);
+    },
+    cartById(variables: ZonosCartByIdQueryVariables, requestHeaders?: GraphQLClientRequestHeaders): Promise<ZonosCartByIdQuery> {
+      return withWrapper((wrappedRequestHeaders) => client.request<ZonosCartByIdQuery>(CartByIdDocument, variables, {...requestHeaders, ...wrappedRequestHeaders}), 'cartById', 'query', variables);
+    },
     catalogItem(variables?: ZonosCatalogItemQueryVariables, requestHeaders?: GraphQLClientRequestHeaders): Promise<ZonosCatalogItemQuery> {
       return withWrapper((wrappedRequestHeaders) => client.request<ZonosCatalogItemQuery>(CatalogItemDocument, variables, {...requestHeaders, ...wrappedRequestHeaders}), 'catalogItem', 'query', variables);
     },
