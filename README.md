@@ -124,6 +124,7 @@ const variables = {
     calculationMethod: 'DDP',
     endUse: 'NOT_FOR_RESALE',
     tariffRate: 'ZONOS_PREFERRED',
+    quoteType: 'CHECKOUT',
   },
   partyCreateWorkflowInput: [
     {
@@ -165,6 +166,84 @@ For more details on the `itemCreateWorkflowInput`, visit the [Input.ItemCreateWo
 For more details on the `landedCostCalculateWorkflowInput`, visit the [Input.LandedCostCalculateWorkflowInput](https://zonos.com/developer/types/LandedCostWorkFlowInput) documentation.
 
 For more details on the `partyCreateWorkflowInput`, visit the [Input.PartyCreateWorkflowInput](https://zonos.com/developer/types/PartyCreateWorkflowInput) documentation.
+
+</details>
+
+<details>
+<summary>
+
+### Landed Cost Only
+
+</summary>
+
+Use the `landedCostOnly` method when you want to calculate duty/tax and totals for a specific shipping quote you already know (for example, a specific carrier/service and price). This workflow lets you provide a shipment rating up front via `shipmentRatingCreateWorkflowInput` and then calculates landed costs using the `landedCostCalculateWorkflow`.
+
+#### Example:
+
+```typescript
+const variables = {
+  itemCreateWorkflowInput: [
+    {
+      amount: 20,
+      countryOfOrigin: 'CN',
+      currencyCode: 'USD',
+      description: 'Backpack',
+      hsCode: '4202.92',
+      productId: 'e89861c0-f04e-11ee-bc4f-4b0822420556',
+      quantity: 1,
+    },
+  ],
+  landedCostCalculateWorkflowInput: {
+    calculationMethod: 'DDP',
+    endUse: 'NOT_FOR_RESALE',
+    tariffRate: 'ZONOS_PREFERRED',
+    quoteType: 'CHECKOUT',
+  },
+  partyCreateWorkflowInput: [
+    {
+      location: {
+        administrativeArea: '',
+        administrativeAreaCode: 'QC',
+        countryCode: 'CA',
+        line1: '4398 St Laurent av',
+        line2: ' ',
+        locality: 'Montreal',
+        postalCode: 'H2W 1Z5',
+      },
+      type: 'ORIGIN',
+    },
+    {
+      location: {
+        administrativeArea: '',
+        administrativeAreaCode: '',
+        countryCode: 'GB',
+        line1: 'location line 1',
+        locality: '',
+        postalCode: 'SW1W 0NY',
+      },
+      type: 'DESTINATION',
+    },
+  ],
+  shipmentRatingCreateWorkflowInput: {
+    amount: 20,
+    currencyCode: 'USD',
+    displayName: 'custom:custom',
+    serviceLevelCode: 'custom:custom',
+  },
+};
+
+const { errors, json } = await zonosClient.landedCostOnly({
+  credentialToken,
+  variables,
+});
+```
+
+#### Zonos Graph Documentation:
+
+- For items: [Input.ItemCreateWorkflowInput](https://zonos.com/developer/types/ItemCreateWorkflowInput)
+- For landed cost options (including quoteType): [Input.LandedCostWorkFlowInput](https://zonos.com/developer/types/LandedCostWorkFlowInput)
+- For parties: [Input.PartyCreateWorkflowInput](https://zonos.com/developer/types/PartyCreateWorkflowInput)
+- For shipment rating create: [Input.ShipmentRatingCreateWorkflowInput](https://zonos.com/developer/types/ShipmentRatingCreateWorkflowInput)
 
 </details>
 

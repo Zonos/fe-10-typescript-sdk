@@ -174,6 +174,7 @@ export const zonosClient = {
    *     calculationMethod: 'DDP',
    *     endUse: 'NOT_FOR_RESALE',
    *     tariffRate: 'ZONOS_PREFERRED',
+   *     quoteType: 'CHECKOUT',
    *   },
    * };
    *
@@ -219,6 +220,7 @@ export const zonosClient = {
    *       calculationMethod: 'DDP',
    *       endUse: 'NOT_FOR_RESALE',
    *       tariffRate: 'ZONOS_PREFERRED',
+   *       quoteType: 'CHECKOUT',
    *     },
    *     partyCreateWorkflowInput: [
    *       {
