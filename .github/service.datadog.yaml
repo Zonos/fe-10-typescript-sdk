@@ -1,0 +1,33 @@
+apiVersion: v3
+kind: service
+metadata:
+  name: fe-10-typescript-sdk
+  owner: team-16
+  additionalOwners:
+    - name: devops
+      type: infra
+  tags:
+    - language:typescript
+    - cloud_provider:aws
+  contacts:
+    - name: team-16-hello
+      type: slack
+      contact: https://zonos.slack.com/archives/C0APYQ68LH4
+  links:
+    - name: Source Code
+      type: repo
+      url: https://github.com/Zonos/fe-10-typescript-sdk
+      provider: github
+spec:
+  lifecycle: production
+  tier: "bronze"
+  type: web
+  languages:
+    - typescript
+datadog:
+  codeLocations:
+    - repositoryURL: https://github.com/Zonos/fe-10-typescript-sdk
+extensions:
+  datadoghq.com/ci-pipelines:
+    - name: fe-10-typescript-sdk
+      provider: github
