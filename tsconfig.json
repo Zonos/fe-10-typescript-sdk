@@ -16,7 +16,7 @@
     "strict": true,
     "strictNullChecks": true,
     "target": "es5",
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "node"],
     "verbatimModuleSyntax": true,
     "paths": {
       "src/*": ["./src/*"],

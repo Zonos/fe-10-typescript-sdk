@@ -1,26 +1,24 @@
 {
   "name": "@zonos/typescript-sdk",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "Streamline international ecommerce with the Zonos TypeScript SDK",
   "repository": "git@github.com:Zonos/typescript-sdk.git",
   "license": "MIT",
   "private": false,
   "peerDependencies": {
     "graphql": "^16.x",
-    "graphql-request": "^4.x",
-    "graphql-tag": "^2.x"
+    "graphql-request": "^6.x"
   },
   "engines": {
-    "node": "20"
+    "node": "^22"
   },
   "publishConfig": {
     "@zonos:registry": "https://registry.npmjs.org"
   },
-  "packageManager": "pnpm@8.15.8",
+  "packageManager": "pnpm@10.33.0",
   "devDependencies": {
     "graphql": "^16.8.1",
-    "graphql-request": "^4.3.0",
-    "graphql-tag": "^2.12.6",
+    "graphql-request": "^6.1.0",
     "@babel/core": "^7.24.3",
     "@babel/preset-env": "^7.24.3",
     "@babel/preset-typescript": "^7.24.1",
@@ -30,12 +28,11 @@
     "@graphql-codegen/typescript": "3.0.4",
     "@graphql-codegen/typescript-graphql-request": "^6.2.0",
     "@graphql-codegen/typescript-operations": "^2.5.13",
-    "@rollup/plugin-buble": "^1.0.3",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-replace": "^5.0.5",
-    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-terser": "^1.0.0",
     "@types/jest": "^29.5.12",
-    "@types/node": "^18.19.28",
+    "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
     "concurrently": "^7.6.0",
@@ -56,10 +53,10 @@
     "eslint-plugin-vitest": "^0.2.8",
     "glob": "^9.3.5",
     "prettier": "^2.8.8",
-    "rollup": "^3.30.0",
+    "rollup": "^4.61.0",
     "rollup-plugin-progress": "^1.1.2",
     "rollup-plugin-sizes": "^1.0.6",
-    "rollup-plugin-typescript2": "^0.34.1",
+    "rollup-plugin-typescript2": "^0.37.0",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.1.2",
     "ts-toolbelt": "^9.6.0",
@@ -67,8 +64,18 @@
     "tslib": "^2.6.2",
     "typescript": "5.4.3",
     "typescript-transform-paths": "^3.4.7",
-    "vite": "^5.2.14",
-    "vitest": "^1.4.0"
+    "vite": "^6.3.0",
+    "vitest": "^4.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "json-schema": ">=0.4.0",
+      "minimatch@>=4.0.0 <4.2.4": ">=4.2.4",
+      "minimatch@>=9.0.0 <9.0.6": ">=9.0.6",
+      "lodash@>=4.0.0 <=4.17.23": ">=4.17.24",
+      "immutable@<3.8.3": ">=3.8.3",
+      "ws@>=8.0.0 <8.17.1": ">=8.17.1"
+    }
   },
   "scripts": {
     "lint": "eslint src --ext .ts",
