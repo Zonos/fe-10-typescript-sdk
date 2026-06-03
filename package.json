@@ -2,7 +2,7 @@
   "name": "@zonos/typescript-sdk",
   "version": "0.2.0",
   "description": "Streamline international ecommerce with the Zonos TypeScript SDK",
-  "repository": "git@github.com:Zonos/typescript-sdk.git",
+  "repository": "git@github.com:Zonos/fe-10-typescript-sdk.git",
   "license": "MIT",
   "private": false,
   "peerDependencies": {
