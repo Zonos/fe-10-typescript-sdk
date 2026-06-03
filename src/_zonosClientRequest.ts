@@ -1,7 +1,10 @@
+import type { GraphQLError } from 'graphql';
 import { ClientError, GraphQLClient } from 'graphql-request';
-import type { GraphQLError } from 'graphql-request/dist/types';
 
 import { getSdk, type Sdk } from 'src/types/generated/graphql.customer.types';
+
+type ZonosGraphQLError = Pick<GraphQLError, 'message'> &
+  Partial<Omit<GraphQLError, 'message'>>;
 
 type OperationName = keyof Sdk;
 /**
@@ -32,7 +35,7 @@ type ReqParams<O extends OperationName> = {
 type ReqReturnJson<O extends OperationName> = Awaited<ReturnType<Sdk[O]>>;
 
 type ReqReturn<O extends OperationName> = {
-  errors: GraphQLError[];
+  errors: ZonosGraphQLError[];
   json: ReqReturnJson<O> | null;
 };
 

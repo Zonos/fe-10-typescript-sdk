@@ -8,6 +8,7 @@ export const generateCustomer = {
       scalars: {
         DateTime: 'string',
         Decimal: 'number',
+        JSON: 'Record<string, unknown>',
         ZonedDateTime: 'string',
       },
     } satisfies TypeScriptDocumentsPluginConfig,

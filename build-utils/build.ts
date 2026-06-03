@@ -1,5 +1,4 @@
 /* eslint-disable import/no-extraneous-dependencies */
-import buble from '@rollup/plugin-buble';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import replace from '@rollup/plugin-replace';
 import terser from '@rollup/plugin-terser';
@@ -62,16 +61,8 @@ const bundlePackage = async (
         tsconfigOverride: {
           compilerOptions: {
             module: 'esnext',
+            verbatimModuleSyntax: false,
           },
-        },
-      }),
-      buble({
-        exclude: 'node_modules/**',
-        include: '**/*.{js,mjs,jsx,ts,tsx,vue}',
-        transforms: {
-          dangerousForOf: true,
-          dangerousTaggedTemplateString: true,
-          modules: false,
         },
       }),
       terser(),
