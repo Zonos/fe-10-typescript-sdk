@@ -1,6 +1,6 @@
 {
   "name": "@zonos/typescript-sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Streamline international ecommerce with the Zonos TypeScript SDK",
   "repository": "git@github.com:Zonos/fe-10-typescript-sdk.git",
   "license": "MIT",
@@ -74,7 +74,8 @@
       "minimatch@>=9.0.0 <9.0.6": ">=9.0.6",
       "lodash@>=4.0.0 <=4.17.23": ">=4.17.24",
       "immutable@<3.8.3": ">=3.8.3",
-      "ws@>=8.0.0 <8.17.1": ">=8.17.1"
+      "ws@>=8.0.0 <8.17.1": ">=8.17.1",
+      "esbuild": ">=0.28.1"
     }
   },
   "scripts": {
