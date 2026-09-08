@@ -1,0 +1,26 @@
+name: Security Gate Override
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: PR number to escalate
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  security-events: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  override:
+    uses: Zonos/github-actions/.github/workflows/frontend-security-gate-override.yml@v1
+    with:
+      # workflow_dispatch inputs are strings and the callee declares
+      # type: number — without fromJSON the run schedules zero jobs.
+      pull_request_number: ${{ fromJSON(inputs.pull_request_number) }}
+    secrets:
+      DEPENDABOT_READ_ONLY_TOKEN: ${{ secrets.DEPENDABOT_READ_ONLY_TOKEN }}
+      GATEKEEPER_PRIVATE_KEY: ${{ secrets.GATEKEEPER_PRIVATE_KEY }}
