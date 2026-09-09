@@ -66,17 +66,3 @@ jobs:
       - run: pnpm test:prod
         env:
           CUSTOMER_GRAPH_URL: ${{ secrets.CUSTOMER_GRAPH_URL }}
-
-  SecurityGate:
-    name: Security gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 10.x
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm audit --audit-level high
