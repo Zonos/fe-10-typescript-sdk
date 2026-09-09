@@ -65,7 +65,7 @@
     "typescript": "5.4.3",
     "typescript-transform-paths": "^3.4.7",
     "vite": "^6.3.0",
-    "vitest": "^4.1.8"
+    "vitest": "^5.0.0"
   },
   "pnpm": {
     "overrides": {
