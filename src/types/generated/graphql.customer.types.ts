@@ -61,11 +61,24 @@ export type ZonosAddressMatchThreshold =
 
 export type ZonosAdjustmentSource =
   | 'API_REQUEST'
+  | 'DISCOUNT'
   | 'PROMO_CODE';
 
 export type ZonosAgency =
+  /** USDA Agricultural Marketing Service. */
+  | 'AMS'
+  /** USDA APHIS (Core) — animal/plant/biologic import message set (ACE agency code APH, core programs AAC/ABS/APQ/AVS). */
+  | 'APHIS'
+  /** USDA APHIS Lacey Act plant/plant-product import declaration (ACE agency code APH, program code APL). */
+  | 'APL'
   /** U.S. Consumer Product Safety Commission. */
-  | 'CPSC';
+  | 'CPSC'
+  /** U.S. Environmental Protection Agency — import message sets for pesticides (FIFRA, programs PS1/PS2/PS3), toxic substances (TSCA, TS1), ozone-depleting substances (ODS), hydrofluorocarbons (HFC), and vehicles & engines (VNE). ACE agency code EPA. */
+  | 'EPA'
+  /** U.S. Food and Drug Administration. */
+  | 'FDA'
+  /** U.S. Fish & Wildlife Service wildlife import declaration (Form 3-177 / ACE FWS PGA message set). */
+  | 'FWS';
 
 export type ZonosAlcoholRecipientType =
   | 'CONSUMER'
@@ -88,12 +101,6 @@ export type ZonosAmountDetail = {
   type: Maybe<ZonosAmountDetailSourceType>;
 };
 
-export type ZonosAmountDetailRefundSourceType =
-  | 'DISCOUNT'
-  | 'DUTY_TAX_FEE'
-  | 'ITEM'
-  | 'SHIPPING';
-
 export type ZonosAmountDetailSourceType =
   | 'DISCOUNT'
   | 'DUTY'
@@ -102,14 +109,6 @@ export type ZonosAmountDetailSourceType =
   | 'ITEM'
   | 'SHIPPING'
   | 'STORE_CREDIT'
-  | 'TAX';
-
-export type ZonosAmountDetailSubtotalType =
-  | 'DISCOUNT'
-  | 'DUTY'
-  | 'FEE'
-  | 'ITEM'
-  | 'SHIPPING'
   | 'TAX';
 
 export type ZonosAmountDetailTarget =
@@ -123,16 +122,6 @@ export type ZonosAmountDetailTarget =
 export type ZonosAmountRange = {
   max?: InputMaybe<Scalars['Decimal']>;
   min?: InputMaybe<Scalars['Decimal']>;
-};
-
-export type ZonosAmountSubtotalDetailFilter = {
-  target?: InputMaybe<Array<ZonosAmountDetailTarget>>;
-  type?: InputMaybe<Array<ZonosAmountDetailSubtotalType>>;
-  use?: InputMaybe<Array<ZonosAmountDetailTarget>>;
-};
-
-export type ZonosAmountSubtotalRefundDetailFilter = {
-  type?: InputMaybe<Array<ZonosAmountDetailRefundSourceType>>;
 };
 
 /** A breakdown of the monetary amounts included in the `Order`. */
@@ -154,10 +143,654 @@ export type ZonosAmountSubtotals = {
   variance: Scalars['Decimal'];
 };
 
+/** A certificate associated with an AMS message set (output). */
+export type ZonosAmsCertificate = {
+  __typename?: 'AmsCertificate';
+  /** The certificate reference number. */
+  certificateId: Maybe<Scalars['String']>;
+  /** The kind of certificate. */
+  type: Maybe<ZonosAmsCertificateType>;
+};
+
+/** A certificate the filer holds for an item, used for AMS message selection. */
+export type ZonosAmsCertificateInput = {
+  /** The certificate reference number. */
+  certificateId?: InputMaybe<Scalars['String']>;
+  /** The kind of certificate. */
+  type?: InputMaybe<ZonosAmsCertificateType>;
+};
+
+/** Types of certificate an AMS filer may hold. */
+export type ZonosAmsCertificateType =
+  /** Prior/foreign-government inspection certificate → MO2 (previously inspected); EG2 for eggs. */
+  | 'INSPECTION'
+  /** NOP organic import certificate → OR2. Also carries the special filing codes AMS accepts in place of a certificate number. */
+  | 'NOP_IMPORT'
+  /** SC-6 Importer's Exempt Commodity certificate → MO3 (exempt per existing SC-6). */
+  | 'SC6_EXEMPTION';
+
+/** The disclaim on an AMS program line (PG01 Disclaimer field). Filing it collapses the message set to OI + PG01 — no PG02 or downstream records. AMS accepts it only for EG (an egg product not in the shell that is not de-characterized inedible) and OR (a May File / AM7 line that is not certified organic); the determination is inferred rather than asked, because the filing audience (postal counter / consumer) can't judge it. */
+export type ZonosAmsDisclaim = {
+  __typename?: 'AmsDisclaim';
+  /** The disclaim code to file. AMS accepts only A. */
+  code: Maybe<ZonosAmsDisclaimCode>;
+  /** Confidence (0-1) that the disclaim is correct — 1.0 when the filer declared the item non-organic, otherwise the inference confidence. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+};
+
+/** ACE PGA disclaim codes accepted by AMS (PG01 Disclaimer field) — the reason agency data is not being transmitted. */
+export type ZonosAmsDisclaimCode =
+  /** Product is not regulated by this agency. */
+  | 'A';
+
+/** AMS Intended Use Code for the PG01 record. */
+export type ZonosAmsIntendedUse = {
+  __typename?: 'AmsIntendedUse';
+  /** IUC code (e.g., 230.000, 250.000, 010.000). */
+  code: Scalars['String'];
+  /** AI confidence score (0-1) for this determination. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable description (e.g., Human Food - Consumer, Processing, Animal Food). */
+  description: Maybe<Scalars['String']>;
+};
+
+/** AMS-specific input data for regulation apply. */
+export type ZonosAmsItemInput = {
+  /** Estimated arrival date within US borders. Enables Marketing Order seasonal-exemption (MO7) and the in-season check for minimum-weight exemption (MO8). */
+  arrivalDate?: InputMaybe<Scalars['DateTime']>;
+  /** Certificates the filer holds for this item (prior inspection, SC-6 exemption, NOP import). Drives MO2/MO3/EG2/OR2 message selection. */
+  certificates?: InputMaybe<Array<ZonosAmsCertificateInput>>;
+  /** Net weight of the product for this entry line, compared against the per-commodity minimum-weight threshold to derive a minimum-weight exemption (MO8). */
+  measurements?: InputMaybe<ZonosAmsMeasurementInput>;
+  /** Whether the item is being imported as certified organic. Gates the National Organic Program (OR) pathway. If null, inferred from the item's name/description/categories. */
+  organic?: InputMaybe<Scalars['Boolean']>;
+  /** 8-digit UNSPSC code. If provided, skips AI UNSPSC classification for Marketing Order (MO) PG02. */
+  unspscCode?: InputMaybe<Scalars['String']>;
+};
+
+/** A measurement value paired with its unit. */
+export type ZonosAmsMeasurementInput = {
+  /** Unit of measure for the value. */
+  unit?: InputMaybe<ZonosAmsWeightUnit>;
+  /** Numeric value of the measurement. */
+  value?: InputMaybe<Scalars['Decimal']>;
+};
+
+/** USDA AMS import program. */
+export type ZonosAmsProgram =
+  /** Imported Egg Inspection. */
+  | 'EG'
+  /** Marketing Order Quality Inspection Compliance. */
+  | 'MO'
+  /** National Organic Program. */
+  | 'OR'
+  /** Minimum Quality Standards for Imported Peanuts. */
+  | 'PN';
+
+/** A single AMS program's determination for an item — the basis of one PGA message set. */
+export type ZonosAmsProgramResult = {
+  __typename?: 'AmsProgramResult';
+  /** The certificate this message set requires, echoed from the input (e.g. NOP import certificate for OR, SC-6 for MO3, prior inspection for MO2/EG2). Null when the message needs no certificate. */
+  certificate: Maybe<ZonosAmsCertificate>;
+  /** Confidence (0-1) that this program applies to the item. 1.0 for MO/EG/PN (the HTS flag is deterministic); for OR it's the likelihood the item is organic (1.0 if declared, otherwise AI-inferred). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The disclaim to file on this program line. Non-null (code A) only for EG and OR, and only on a "data may be required" HTS flag — the AMS CATAIR bars disclaims on MO (use the MO3/MO4/MO6/MO7/MO8 exemption messages), on PN entirely, and on Must File (AM8) OR lines. Null means file the message set; the inference is biased toward null. */
+  disclaim: Maybe<ZonosAmsDisclaim>;
+  /** Government Agency Processing Code for PG01 ("1"-"8"); the message use case (e.g. "1" with programCode MO = MO1). */
+  processingCode: Maybe<ZonosGovernmentAgencyProcessingCode>;
+  /** The AMS program this determination is for. */
+  programCode: ZonosAmsProgram;
+  /** UNSPSC classification for the PG02 record. Set for MO (MO1/4/6), PN (PN1), and EG (egg-type code). Null for OR, which carries no PG02 product code, and null on a disclaimed line, which files no PG02 at all. */
+  unspscCode: Maybe<ZonosAmsUnspscCode>;
+};
+
+/** UNSPSC classification for the AMS PG02 record (Marketing Order commodity/variety). */
+export type ZonosAmsUnspscCode = {
+  __typename?: 'AmsUnspscCode';
+  /** Full 8-digit UNSPSC classification number. */
+  code: Scalars['String'];
+  /** AI confidence score (0-1) for this UNSPSC classification. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Breakdown of the UNSPSC code into its hierarchical components. */
+  fragments: Maybe<Array<ZonosAmsUnspscFragment>>;
+};
+
+/** A fragment of a UNSPSC code representing one level of the hierarchy. */
+export type ZonosAmsUnspscFragment = {
+  __typename?: 'AmsUnspscFragment';
+  /** The 2-digit code value for this fragment (e.g., for 50102503: '50', '10', '25', '03'). */
+  code: Scalars['String'];
+  /** Human-readable description of this level (e.g., 'Food Beverage and Tobacco Products', 'Walnuts, in shell'). */
+  description: Maybe<Scalars['String']>;
+  /** The type of fragment indicating which level of the hierarchy this represents. */
+  type: ZonosAmsUnspscFragmentType;
+};
+
+/** The hierarchical level of a UNSPSC code fragment. AMS commodities all fall under segment 50 (Food Beverage and Tobacco Products). */
+export type ZonosAmsUnspscFragmentType =
+  /** 5th-6th digits: Class within the family. */
+  | 'CLASS'
+  /** 7th-8th digits: Specific commodity within the class (e.g., 50102503 = Walnuts, in shell). */
+  | 'COMMODITY'
+  /** 3rd-4th digits: Family within the segment (e.g., 10 = Nuts and seeds). */
+  | 'FAMILY'
+  /** 1st-2nd digits: Broad segment (e.g., 50 = Food Beverage and Tobacco Products). */
+  | 'SEGMENT';
+
+/** Weight units supported for AMS measurements. */
+export type ZonosAmsWeightUnit =
+  /** Kilograms. */
+  | 'KG'
+  /** Pounds. */
+  | 'LB';
+
 /** Possible statuses for the AnalyticsProvider object */
 export type ZonosAnalyticsProviderStatus =
   | 'DISABLED'
   | 'ENABLED';
+
+/** Which kind of animal drug application FDA approved (see animalDrugApprovalSuggest). */
+export type ZonosAnimalDrugApplicationType =
+  /** Abbreviated New Animal Drug Application — the generic, numbered at or above 200-000 and affirmed as VAN. */
+  | 'ABBREVIATED_NADA'
+  /** Conditionally approved NADA, whose trade name carries FDA's "-CA1" suffix. Numbered in the NADA range and affirmed as VNA like any other NADA. */
+  | 'CONDITIONALLY_APPROVED_NADA'
+  /** New Animal Drug Application — the brand approval, numbered below 200-000 and affirmed as VNA. */
+  | 'NADA'
+  /** An application type FDA publishes that is none of the above — named rather than guessed at. */
+  | 'UNSPECIFIED';
+
+/** An FDA-approved animal drug offered as a trade-name typeahead suggestion (see animalDrugApprovalSuggest). */
+export type ZonosAnimalDrugApprovalSuggestion = {
+  __typename?: 'AnimalDrugApprovalSuggestion';
+  /** Active ingredient FDA files the approval under, e.g. "Amoxicillin Trihydrate". */
+  activeIngredientName: Maybe<Scalars['String']>;
+  /** The approval number, hyphenated as FDA prints it ("055-078") — the value the affirmation is filed with. Which affirmation that becomes follows from the number: below 200-000 is a NADA (VNA), at or above is an ANADA (VAN). */
+  applicationNumber: Scalars['String'];
+  /** Whether the approval is a NADA, an ANADA or a conditional NADA. */
+  applicationType: ZonosAnimalDrugApplicationType;
+  /** Dosage form, e.g. "Tablet" or "Medicated Feed" — with the marketing status it tells two same-named products apart. */
+  dosageForm: Maybe<Scalars['String']>;
+  /** How the product is marketed, as FDA publishes it: RX, OTC or VFD (veterinary feed directive). */
+  marketingStatus: Maybe<Scalars['String']>;
+  /** The trade name as FDA publishes it, registered symbols and all. */
+  proprietaryName: Scalars['String'];
+  /** Species the approval covers, e.g. ["Dogs","Cats (Domestic)"] — the fastest check that this is the right product. */
+  species: Array<Scalars['String']>;
+  /** The application holder, e.g. "Zoetis Inc.". */
+  sponsorName: Maybe<Scalars['String']>;
+  /** When the sponsor voluntarily withdrew the application; null while the approval stands. A withdrawn approval is still suggested, since the withdrawal is a fact the filer needs, but ranks below a current one. */
+  withdrawnAt: Maybe<Scalars['DateTime']>;
+};
+
+export type ZonosAnswerOption = {
+  __typename?: 'AnswerOption';
+  /** When this option is offerable, as a rule expression over the item (hs_code, country_of_origin, ship_from_country, ship_to_country). Null = always offerable. */
+  condition: Maybe<Scalars['String']>;
+  displayOrder: Scalars['Int'];
+  id: Scalars['ID'];
+  label: Scalars['String'];
+  /** When choosing this option is published as an item attribute, over the line's final answers plus the item facts hs_code, country_of_origin, ship_from_country and ship_to_country. Null = always published. */
+  publishCondition: Maybe<ZonosDisplayCondition>;
+  value: Scalars['String'];
+};
+
+/** How a single answer originated. Distinct from ComplianceProvenance: a finalized response/attribute is never plain-INFERRED. */
+export type ZonosAnswerProvenance =
+  /** Copied from another catalog item's completed response and not (yet) edited. */
+  | 'COPIED'
+  /** Looked up from another answer — a registration number the registry publishes against the manufacturer name the filer gave. The system's to refresh or withdraw when that source changes; a filer who types over it makes it MANUAL and it stops being touched. */
+  | 'DERIVED'
+  /** Pre-filled from inference and not (yet) edited. */
+  | 'INFERRED'
+  | 'MANUAL'
+  /** Supplied by the filer in the regulationsApply request (not answered in the questionnaire); nothing to confirm, so it is not shown. */
+  | 'SUPPLIED';
+
+/** A (questionCode, value) pair identifying one parent answer. */
+export type ZonosAnswerRef = {
+  __typename?: 'AnswerRef';
+  /** Consumer-friendly name for `value`; null where the source has no name for it. */
+  label: Maybe<Scalars['String']>;
+  questionCode: Scalars['String'];
+  value: Scalars['String'];
+};
+
+/** One answer, named — the input form of AnswerRef. */
+export type ZonosAnswerRefInput = {
+  /** Consumer-friendly name for `value`; falls back to `value` when omitted. */
+  label?: InputMaybe<Scalars['String']>;
+  questionCode: Scalars['String'];
+  value: Scalars['String'];
+};
+
+/** Which question to offer candidates for, and what the filer has typed (see answerSuggest). */
+export type ZonosAnswerSuggestFilter = {
+  /** Answers picked but not yet submitted, overlaid on the line's stored ones for this search — without them nothing scopes it, since a questionnaire is submitted once at the end. Plain values, as `fills`. */
+  answers?: InputMaybe<Array<ZonosAnswerRefInput>>;
+  /** External id of the session line the question is being answered on. */
+  lineId: Scalars['ID'];
+  /** Declaration line (0..N) of a repeating question being answered; scopes the search to header answers plus that line's. Null reads line 0. */
+  lineIndex?: InputMaybe<Scalars['Int']>;
+  /** Stable code of the REFERENCE question. Anything else returns empty. */
+  questionCode: Scalars['String'];
+  /** What the filer has typed. Most registries need two characters; a genus-scoped species search does not. */
+  search?: InputMaybe<Scalars['String']>;
+};
+
+/** One candidate answer to a REFERENCE question. The client renders `label` and, on a pick, submits `fills` verbatim — it never parses `value` or knows which registry produced it. */
+export type ZonosAnswerSuggestion = {
+  __typename?: 'AnswerSuggestion';
+  /** Every answer this pick writes, ready for questionnaireAnswersSubmit — one record often answers several questions, as a taxon fills genus and species and an establishment fills its address. The entry for the question asked carries what the dropdown renders. */
+  fills: Array<ZonosAnswerRef>;
+};
+
+/** Candidates for one REFERENCE question, best match first; empty when nothing matches. */
+export type ZonosAnswerSuggestionConnection = {
+  __typename?: 'AnswerSuggestionConnection';
+  edges: Array<ZonosAnswerSuggestionEdge>;
+  pageInfo: ZonosPageInfo;
+};
+
+export type ZonosAnswerSuggestionEdge = {
+  __typename?: 'AnswerSuggestionEdge';
+  cursor: Scalars['String'];
+  node: ZonosAnswerSuggestion;
+};
+
+export type ZonosAnswerType =
+  | 'BOOLEAN'
+  /** An attestation the filer ticks: the prompt is the statement being certified, and the only answer is `true`. Unlike BOOLEAN there is no meaningful false — declining a certification is not an answer to record but a line still owing its paperwork — so an unticked box is simply unanswered. */
+  | 'CHECKBOX'
+  | 'DATE'
+  | 'DOCUMENT'
+  | 'MULTI_SELECT'
+  | 'NUMBER'
+  /** A reference to a record in a registry too large to deliver as options — a taxon, an FDA establishment. The client renders a typeahead and calls `answerSuggest`; the answer stores as TEXT. */
+  | 'REFERENCE'
+  | 'SINGLE_SELECT'
+  | 'TEXT';
+
+/** The APHIS category for a line — deterministic from the HTS mapping. */
+export type ZonosAphisCategory = {
+  __typename?: 'AphisCategory';
+  /** Category code, e.g. "101"; null when the HTS carries a non-concrete code. */
+  code: Maybe<Scalars['String']>;
+  /** Human-readable category name, e.g. "Live Animal". */
+  name: Maybe<Scalars['String']>;
+  /** Category-type code, e.g. "AP0100". */
+  type: Maybe<Scalars['String']>;
+};
+
+/** A resolved PG10 commodity qualifier for an APHIS line — a distinctive attribute of the commodity (physical state, gender, breed, ...). Officially the ACE CATAIR "Commodity Qualifier Code" (Appendix PGA). */
+export type ZonosAphisCommodityQualifier = {
+  __typename?: 'AphisCommodityQualifier';
+  /** The commodity qualifier code, e.g. "A61" (physical state). */
+  code: Scalars['String'];
+  /** Confidence (0-1): keyword match ~0.9, Tier-3 default ~0.8, 0 when mandatory-but-unresolved. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable qualifier name, e.g. "Physical State". */
+  name: Maybe<Scalars['String']>;
+  /** The resolved value code, e.g. "FRS"; null when a mandatory qualifier was not resolved (ask the filer). */
+  value: Maybe<Scalars['String']>;
+  /** Human-readable name of the resolved value, e.g. "Fresh". */
+  valueName: Maybe<Scalars['String']>;
+};
+
+/** The disclaim inferred for an APHIS line (PG01 Disclaimer field). Filing it short-circuits the message set — no taxon/qualifier declaration required. */
+export type ZonosAphisDisclaim = {
+  __typename?: 'AphisDisclaim';
+  /** The disclaim code to file (A = commodity not regulated by APHIS). Set by inference only when confidently not-regulated. */
+  code: Maybe<ZonosAphisDisclaimCode>;
+  /** AI confidence score (0-1) that the item is not APHIS-regulated (i.e. that the disclaim is correct). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+};
+
+/** ACE PGA disclaim codes (PG01 Disclaimer field) — the reason agency data is not being transmitted. */
+export type ZonosAphisDisclaimCode =
+  /** Commodity is not regulated by this agency. */
+  | 'A'
+  /** Data is not required per agency guidance. */
+  | 'B'
+  /** Data filed through other agency means (e.g. a signed document image in DIS). */
+  | 'C'
+  /** Data filed on paper. */
+  | 'D';
+
+/** A supporting document (the ACE "LPCO" — license/permit/certificate/other) required for an APHIS line (PG14). */
+export type ZonosAphisDocument = {
+  __typename?: 'AphisDocument';
+  /** The document code, e.g. "A01" (foreign phytosanitary certificate). */
+  code: Scalars['String'];
+  /** Confidence (0-1): 1.0 from authoritative ACIR data, ~0.8 from a cert-heuristic default. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable document name. */
+  name: Maybe<Scalars['String']>;
+};
+
+/** PG01 intended use for an APHIS line — client-declared or AI-inferred from the APHIS IUC menu. */
+export type ZonosAphisIntendedUse = {
+  __typename?: 'AphisIntendedUse';
+  /** The intended-use code (base.sub, e.g. 230.000). */
+  code: Maybe<Scalars['String']>;
+  /** Confidence (0-1); 1.0 when client-declared, the model confidence when inferred. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable description. */
+  description: Maybe<Scalars['String']>;
+};
+
+/** APHIS (Core)-specific input data for regulation apply. */
+export type ZonosAphisItemInput = {
+  /** Scientific-name genus, e.g. "Bos". Provide with `species` to skip AI scientific-name inference (PG05). */
+  genus?: InputMaybe<Scalars['String']>;
+  /** PG01 intended-use code (base.sub, e.g. 230.000). If provided, skips AI intended-use inference. */
+  intendedUseCode?: InputMaybe<Scalars['String']>;
+  /** Whether this entry is the whole imported article or a component of a larger article. Defaults to PRODUCT. */
+  itemType?: InputMaybe<ZonosAphisItemType>;
+  /** One commodity line per organism; when given, replaces this input's single-line fields. */
+  lines?: InputMaybe<Array<ZonosAphisLineInput>>;
+  /** PG04 reported quantity, in `unitOfMeasure`. Echoed onto the result; a supplied value pre-answers the questionnaire's quantity question. */
+  quantity?: InputMaybe<Scalars['Decimal']>;
+  /** Scientific-name species epithet, e.g. "taurus". Provide with `genus` to skip AI scientific-name inference (PG05). */
+  species?: InputMaybe<Scalars['String']>;
+  /** Subspecies / variety epithet (PG05), e.g. "capitata". Echoed onto the taxon; distinguishes commodities that share a binomial (e.g. Brassica oleracea cultivars). */
+  subSpecies?: InputMaybe<Scalars['String']>;
+  /** PG04 unit of measure for `quantity`. Echoed onto the result; a supplied value pre-answers the questionnaire's unit question. */
+  unitOfMeasure?: InputMaybe<ZonosAphisUnitOfMeasure>;
+};
+
+/** Whether an APHIS line is the whole imported article or a component of a larger article. */
+export type ZonosAphisItemType =
+  /** The line is one component of a larger article (e.g. a leather strap on a watch). */
+  | 'COMPONENT'
+  /** The entire imported article is this commodity (e.g. a crate of fresh papaya). */
+  | 'PRODUCT';
+
+/** One commodity line of an APHIS declaration: the organism, whether it is the product or a component, its quantity and source. */
+export type ZonosAphisLine = {
+  __typename?: 'AphisLine';
+  /** Whether this line is the whole imported article (PRODUCT) or a component of it (COMPONENT). */
+  itemType: Maybe<ZonosAphisItemType>;
+  /** PG02 product code — AVB for vet biologics, else the HTS-static ITIS TSN when this line's taxon is the crosswalk's; null when neither. */
+  productCode: Maybe<ZonosAphisProductCode>;
+  /** PG04 reported quantity, in `unitOfMeasure`. Echoed from input; null when not supplied. */
+  quantity: Maybe<Scalars['Decimal']>;
+  /** PG06 source — source type (267 country of species origin) + this line's country. */
+  source: Maybe<ZonosAphisSource>;
+  /** PG05 taxon (genus/species), filer-declared or inferred + validated against the taxonomy backbone. */
+  taxon: Maybe<ZonosAphisTaxon>;
+  /** PG04 unit of measure for `quantity`. Echoed from input; null when not supplied. */
+  unitOfMeasure: Maybe<ZonosAphisUnitOfMeasure>;
+};
+
+/** A single commodity line the filer declares for an APHIS item. */
+export type ZonosAphisLineInput = {
+  /** Scientific genus (PG05). Provide with `species` to skip taxon inference for this line. */
+  genus?: InputMaybe<Scalars['String']>;
+  /** PRODUCT or COMPONENT. Defaults to PRODUCT for the first line and COMPONENT for the rest. */
+  itemType?: InputMaybe<ZonosAphisItemType>;
+  /** PG04 reported quantity, in `unitOfMeasure`. */
+  quantity?: InputMaybe<Scalars['Decimal']>;
+  /** PG06 country of species origin (ISO 2-char). Defaults to the item's country of origin. */
+  sourceCountry?: InputMaybe<ZonosCountryCode>;
+  /** Scientific species epithet (PG05). Provide with `genus` to skip taxon inference for this line. */
+  species?: InputMaybe<Scalars['String']>;
+  /** Subspecies / variety epithet (PG05). */
+  subSpecies?: InputMaybe<Scalars['String']>;
+  /** PG04 unit of measure for `quantity`. */
+  unitOfMeasure?: InputMaybe<ZonosAphisUnitOfMeasure>;
+};
+
+/** PG02 product code for an APHIS line (optional per ACE; absent when neither a TSN nor AVB applies). */
+export type ZonosAphisProductCode = {
+  __typename?: 'AphisProductCode';
+  /** Confidence (0-1) — inherits the taxon confidence for TSN; 1.0 for AVB. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The product-code number — the ITIS TSN; null for AVB (the importer supplies the CVB number). */
+  number: Maybe<Scalars['String']>;
+  /** The qualifier: TSN (resolved taxon) or AVB (vet biologics, categories 307A/307B). */
+  qualifier: Maybe<Scalars['String']>;
+};
+
+/** PG06 source for an APHIS line — the source type and its paired country. */
+export type ZonosAphisSource = {
+  __typename?: 'AphisSource';
+  /** Confidence (0-1): 1.0 for AAC / live animals (267 is mandatory there); ~0.6 elsewhere (editable default). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The source country (ISO 2-char), paired with the source type. */
+  country: Maybe<ZonosCountryCode>;
+  /** PG06 source-type code; "267" (country of species origin) by default. */
+  typeCode: Maybe<Scalars['String']>;
+  /** Human-readable source-type name. */
+  typeName: Maybe<Scalars['String']>;
+};
+
+/** The APHIS taxon (PG05 genus/species) — client-supplied or inferred + validated against the APHIS name list. Mirrors FwsTaxon / AplTaxon: trust is conveyed by confidenceScore (1.0 = supplied/confirmed, lower = inferred), not a separate flag. Within-species variety is filed as a PG10 characteristic (A11), not here. */
+export type ZonosAphisTaxon = {
+  __typename?: 'AphisTaxon';
+  /** Common name from the APHIS name list, when the taxon resolved to one (PG17). */
+  commonName: Maybe<Scalars['String']>;
+  /** Confidence (0-1): 1.0 client-supplied, the crosswalk/model confidence when inferred. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Scientific genus name (PG05). */
+  genus: Maybe<Scalars['String']>;
+  /** Scientific species name (PG05). */
+  species: Maybe<Scalars['String']>;
+  /** Subspecies / variety epithet (PG05), e.g. "capitata" for cabbage. Client-supplied; distinguishes commodities that share a binomial (e.g. Brassica oleracea cultivars). Null when none applies. */
+  subSpecies: Maybe<Scalars['String']>;
+};
+
+/** An ACIR-required treatment for a commodity/origin (e.g. cold treatment, methyl bromide fumigation). */
+export type ZonosAphisTreatment = {
+  __typename?: 'AphisTreatment';
+  /** The PPQ treatment-schedule code parsed from the ACIR text, e.g. "T107-b"; null when the text carries no code (a continuation note). */
+  code: Maybe<Scalars['String']>;
+  /** Confidence (0-1): 1.0 from authoritative ACIR data. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The full ACIR treatment text (schedule + conditions). */
+  description: Maybe<Scalars['String']>;
+};
+
+/** APHIS reporting units of measure (ACE pga_aphis_uom) — what a PG04 quantity is counted in. */
+export type ZonosAphisUnitOfMeasure =
+  /** Animal units. */
+  | 'AMU'
+  /** Bundle / bunch. */
+  | 'BH'
+  /** Bouquet. */
+  | 'BQT'
+  /** Box. */
+  | 'BX'
+  /** Carton. */
+  | 'CT'
+  /** Grams. */
+  | 'G'
+  /** Kilograms. */
+  | 'KG'
+  /** Liters. */
+  | 'L'
+  /** Milliliters. */
+  | 'ML'
+  /** Number / count. */
+  | 'NO'
+  /** Plant units. */
+  | 'PTU'
+  /** Straws / ampules / doses. */
+  | 'SAD'
+  /** Stems. */
+  | 'STM';
+
+/** A unit of measure APHIS requires for reporting a commodity's quantity (e.g. KG weight, AMU animal units). */
+export type ZonosAphisUnitOfMeasureRequirement = {
+  __typename?: 'AphisUnitOfMeasureRequirement';
+  /** The unit-of-measure code, e.g. "KG" (kilograms) / "AMU" (animal units) / "NO" (count). */
+  code: Scalars['String'];
+  /** Confidence (0-1): 1.0 — deterministic from the category UOM matrix. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human note on what the UOM reports, e.g. "weight required". */
+  description: Maybe<Scalars['String']>;
+};
+
+/** Country where a Lacey Act line's plant material was harvested (PG06). Echoed from input, or inferred from the item when omitted. */
+export type ZonosAplCountryOfHarvest = {
+  __typename?: 'AplCountryOfHarvest';
+  /** Confidence (0-1) in the country. 1.0 when supplied by the filer; the inference confidence when derived. Harvest country is inferred from country-of-origin signals and should be verified. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The harvest country (ISO 2-char). */
+  countryCode: Maybe<ZonosCountryCode>;
+};
+
+/** The disclaim on a Lacey Act declaration (PG01 Disclaimer field). Filing it short-circuits the message set to OI + PG01 — no plant lines are declared. Filer-supplied (confidence 1.0), or inferred as code A when the apply is confident the item carries no Lacey-regulated plant material. Only a high-confidence inference is honored, since a wrong disclaim under-files a declaration that was owed; a plausibly CITES/ESA-protected species is always declared, as no statute exclusion covers one. */
+export type ZonosAplDisclaim = {
+  __typename?: 'AplDisclaim';
+  /** The disclaim code to file. */
+  code: ZonosAplDisclaimCode;
+  /** Confidence (0-1) that the disclaim is correct. 1.0 when supplied by the filer; otherwise the inference confidence. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Why the item is not regulated. Set only on an inferred code A — CBP receives only the code, but the ground records the basis for review. */
+  ground: Maybe<ZonosAplDisclaimGround>;
+};
+
+/** ACE PGA disclaim codes for the Lacey Act (PG01 Disclaimer field) — the reason plant declaration data is not being transmitted. */
+export type ZonosAplDisclaimCode =
+  /** Not regulated: the product is not a regulated plant product, or is exempt at the statute level (common cultivar, common food crop, scientific specimen, plants for planting, or zero plant material). */
+  | 'A'
+  /** Not required: identified in APHIS guidance as not requiring a declaration (e.g. certain FTZ products in the zone before November 26, 2016). */
+  | 'B'
+  /** Filed through other agency means — the APHIS Lacey Act Web Governance System (LAWGS). */
+  | 'C'
+  /** Filed on paper — the Lacey Act Plant and Plant Product Declaration (PPQ Form 505/505b). */
+  | 'D'
+  /** De minimis: plant material is no more than 5 percent of the individual product unit weight, and no more than 2.9 kg of plant material per 10-digit HTS entry line (7 CFR 357.4(b)). Filer-supplied only — the per-entry weights it depends on are not known to the apply. */
+  | 'G';
+
+/** The statute-level ground for a code A (not regulated) Lacey disclaim — the exclusions in 7 CFR 357.2. A plant listed under CITES, the ESA, or a State conservation law is not eligible for any of them. */
+export type ZonosAplDisclaimGround =
+  /** A common cultivar other than a tree. */
+  | 'COMMON_CULTIVAR'
+  /** A common food crop, including its roots, seeds, parts, or products. */
+  | 'COMMON_FOOD_CROP'
+  /** The article contains no plant material at all. */
+  | 'NO_PLANT_MATERIAL'
+  /** A plant that is to remain planted, or to be planted or replanted. */
+  | 'PLANTS_FOR_PLANTING'
+  /** A scientific specimen of plant genetic material, to be used only for laboratory or field research. */
+  | 'SCIENTIFIC_SPECIMEN';
+
+/** Lacey Act-specific input data for regulation apply. */
+export type ZonosAplItemInput = {
+  /** A filer-supplied disclaim code. Overrides the inferred disclaim at full confidence, and is the only way to claim a de minimis (G), agency-guidance (B), LAWGS (C), or paper (D) disclaim. */
+  disclaimCode?: InputMaybe<ZonosAplDisclaimCode>;
+  /** The plant/plant-product lines of the item. Each carries the genus/species, country of harvest, quantity, and value the filer knows; country of harvest and value are inferred when omitted. */
+  lines?: InputMaybe<Array<ZonosAplLineInput>>;
+};
+
+/** Whether a Lacey Act line is the whole imported product or a component of a larger article (the PG02 item type). */
+export type ZonosAplItemType =
+  /** A plant part declared as its own component, which CBP allows but calls uncommon. */
+  | 'COMPONENT'
+  /** The imported article, including one made of several plant species (one PG02 P with a species group per line). */
+  | 'PRODUCT';
+
+/** A single plant/plant-product line of a Lacey Act declaration (PG04, with its PG05 genus/species and PG06 source/country-of-harvest). */
+export type ZonosAplLine = {
+  __typename?: 'AplLine';
+  /** Country where the plant material was harvested (PG06). */
+  countryOfHarvest: Maybe<ZonosAplCountryOfHarvest>;
+  /** Name/description of the line (PG04). Echoed from input, or inferred when omitted. */
+  name: Maybe<Scalars['String']>;
+  /** Quantity of plant material (PG04). */
+  quantity: Maybe<Scalars['Decimal']>;
+  /** The plant taxon for this line (genus/species, PG05) — echoed from input or AI-inferred, then validated against the GBIF taxonomic backbone. */
+  taxon: Maybe<ZonosAplTaxon>;
+  /** Whether this entry is the whole imported product or a component of a larger article (PG02 item type). */
+  type: Maybe<ZonosAplItemType>;
+  /** Unit of measure for the quantity (PG04, Lacey metric-only set). */
+  unitOfMeasure: Maybe<ZonosAplUnitOfMeasure>;
+  /** Value of the plant material for this line (PG25). */
+  value: Maybe<ZonosAplValue>;
+};
+
+/** A single plant/plant-product line the filer declares for a Lacey Act item. */
+export type ZonosAplLineInput = {
+  /** Country where the plant material was harvested (ISO 2-char). If omitted, inferred from the item. */
+  countryOfHarvest?: InputMaybe<ZonosCountryCode>;
+  /** Scientific genus name (PG05). If omitted (along with species), inferred from the item and validated against GBIF. */
+  genus?: InputMaybe<Scalars['String']>;
+  /** Name/description of the line (PG04). If omitted, inferred from the item. */
+  name?: InputMaybe<Scalars['String']>;
+  /** Quantity of plant material. */
+  quantity?: InputMaybe<Scalars['Decimal']>;
+  /** Scientific species name (PG05). If omitted (along with genus), inferred from the item and validated against GBIF. */
+  species?: InputMaybe<Scalars['String']>;
+  /** Whether this entry is the whole imported product or a component of a larger article (PG02 item type). */
+  type?: InputMaybe<ZonosAplItemType>;
+  /** Unit of measure for the quantity (Lacey metric-only set). */
+  unitOfMeasure?: InputMaybe<ZonosAplUnitOfMeasure>;
+  /** Value of the plant material for this line. If omitted, estimated via value inference. */
+  value?: InputMaybe<Scalars['Decimal']>;
+  /** Currency of `value`. Defaults to the estimation currency when value is inferred. */
+  valueCurrency?: InputMaybe<ZonosCurrencyCode>;
+};
+
+/** The plant taxon (PG05 genus/species) for a Lacey Act line. A filer-supplied name confirmed against the GBIF taxonomic backbone is returned as-is; otherwise (omitted, partial, or invalid input) the genus/ species are AI-determined — correcting the filer's input when it's a recognizable misspelling. The AI always returns a best determination, so a taxon is effectively always present; the confidenceScore, not a null, conveys how certain that determination is. */
+export type ZonosAplTaxon = {
+  __typename?: 'AplTaxon';
+  /** Common (vernacular) name, derived from the GBIF backbone for the resolved taxon; null when none is known. */
+  commonName: Maybe<Scalars['String']>;
+  /** Confidence (0-1) in the genus/species. 1.0 when filer-supplied and confirmed in the GBIF backbone; otherwise the AI model's confidence (lower when it's unsure). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Scientific genus name (PG05). */
+  genus: Maybe<Scalars['String']>;
+  /** Scientific species name (PG05). */
+  species: Maybe<Scalars['String']>;
+};
+
+/** Unit of measure permitted on a Lacey Act declaration quantity (PG04). Metric only — pieces, counts, and board feet are not accepted. */
+export type ZonosAplUnitOfMeasure =
+  /** Centigrams. */
+  | 'CG'
+  /** Centimeters. */
+  | 'CM'
+  /** Square centimeters. */
+  | 'CM2'
+  /** Cubic centimeters. */
+  | 'CM3'
+  /** Centiliters. */
+  | 'CTL'
+  /** Grams. */
+  | 'G'
+  /** Kilograms. */
+  | 'KG'
+  /** Kiloliters. */
+  | 'KL'
+  /** Liters. */
+  | 'L'
+  /** Meters. */
+  | 'M'
+  /** Square meters. */
+  | 'M2'
+  /** Cubic meters. */
+  | 'M3'
+  /** Milliliters. */
+  | 'ML'
+  /** Millimeters. */
+  | 'MM'
+  /** Square millimeters. */
+  | 'MM2'
+  /** Cubic millimeters. */
+  | 'MM3';
+
+/** Value of a Lacey Act line's plant material (PG25). Echoed from input, or estimated when omitted. */
+export type ZonosAplValue = {
+  __typename?: 'AplValue';
+  /** The monetary amount. */
+  amount: Maybe<Scalars['Decimal']>;
+  /** Confidence (0-1) in the value. 1.0 when supplied by the filer; null when estimated (the value-estimation service returns no confidence score). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Currency of the amount. */
+  currency: Maybe<ZonosCurrencyCode>;
+};
 
 /** Represents an organization's shared theme settings which get used across Zonos Checkout, Zonos Hello, and other shopper-facing experiences. */
 export type ZonosAppearanceSettings = {
@@ -170,6 +803,8 @@ export type ZonosAppearanceSettings = {
   createdAt: Scalars['DateTime'];
   /** The user who created the AppearanceSettings */
   createdBy: Scalars['ID'];
+  /** The name shoppers see for this organization on emails, texts and pages, up to 100 characters. Trimmed on write; blank or `null` falls back to the organization name. */
+  displayName: Maybe<Scalars['String']>;
   /** The font family used for display. Comes from Google Fonts */
   fontFamily: Scalars['String'];
   /** A unique identifier for the AppearanceSettings */
@@ -182,6 +817,8 @@ export type ZonosAppearanceSettings = {
   organization: Scalars['ID'];
   /** Specifies what `ElementsUIStyle` should be used */
   style: ZonosElementsUiStyle;
+  /** The locales offered in the language selector across Checkout and Hello, as lowercase codes (e.g. "en", "de"). Valid values are the `locale.elementsSupportedLocationCode` entries in the frontend graph. `null` offers every locale Elements supports; unrecognized codes are ignored by the widgets. Codes are trimmed, lowercased, and deduplicated on write. */
+  supportedLocales: Maybe<Array<Scalars['String']>>;
   /** Specifies whether to display in dark or light mode */
   theme: ZonosElementsUiTheme;
   /** When the AppearanceSettings was most recently updated */
@@ -198,12 +835,16 @@ export type ZonosAppearanceSettingsUpdateInput = {
   colorPrimary?: InputMaybe<Scalars['String']>;
   /** A hex color code used for providing brand accent colors across the UI */
   colorSecondary?: InputMaybe<Scalars['String']>;
+  /** The name shoppers see for this organization on emails, texts and pages, up to 100 characters. Trimmed on write; blank or `null` falls back to the organization name. */
+  displayName?: InputMaybe<Scalars['String']>;
   /** The font family used for display. Comes from Google Fonts */
   fontFamily?: InputMaybe<Scalars['String']>;
   /** Specifies a link to your organization's logo as an external URL. If not specified, a placeholder image will be used. */
   logoUrl?: InputMaybe<Scalars['String']>;
   /** Specifies what `ElementsUIStyle` should be used */
   style?: InputMaybe<ZonosElementsUiStyle>;
+  /** The locales offered in the language selector across Checkout and Hello, as lowercase codes (e.g. "en", "de"). Valid values are the `locale.elementsSupportedLocationCode` entries in the frontend graph. `null` offers every locale Elements supports; unrecognized codes are ignored by the widgets. Codes are trimmed, lowercased, and deduplicated on write. */
+  supportedLocales?: InputMaybe<Array<Scalars['String']>>;
   /** Specifies whether to display in dark or light mode */
   theme?: InputMaybe<ZonosElementsUiTheme>;
   /** Indicates whether to display a 'Powered by Zonos' badge on Checkout and Hello */
@@ -214,8 +855,8 @@ export type ZonosAppliedDisclaim = {
   __typename?: 'AppliedDisclaim';
   /** AI confidence score (0-1) for the disclaim determination. */
   confidenceScore: Maybe<Scalars['Decimal']>;
-  /** Intended use code for the disclaim (e.g. "130.XXX"). */
-  intendedUseCode: Scalars['String'];
+  /** Intended use code for the disclaim (e.g. "130.XXX"). Required for CPSC, null for FDA. */
+  intendedUseCode: Maybe<Scalars['String']>;
   /** Type of disclaim (A or B). */
   type: ZonosDisclaimType;
 };
@@ -265,7 +906,155 @@ export type ZonosAppliedRegulation = {
   summary: Maybe<Scalars['String']>;
 };
 
-export type ZonosAppliedRegulationsCpsc = {
+export type ZonosAppliedRegulations = {
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the regulation determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+};
+
+/** USDA AMS-specific applied regulations result for an item. Item info appears once; an item may be subject to more than one AMS program (e.g. organic potatoes → MO + OR), so the per-program determinations (each a PGA message set) are carried in `programs`. The client supplies the operational records (entities, packaging, container/weight, inspection logistics) elsewhere. */
+export type ZonosAppliedRegulationsAms = ZonosAppliedRegulations & {
+  __typename?: 'AppliedRegulationsAMS';
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the AMS determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** AMS Intended Use Code for PG01 (e.g., 230.000 consumer food, 250.000 processing). Same across the item's programs. */
+  intendedUse: Maybe<ZonosAmsIntendedUse>;
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+  /** The AMS program determinations for this item — one PGA message set per matched program (MO/EG/PN/OR). */
+  programs: Array<ZonosAmsProgramResult>;
+};
+
+/** USDA APHIS (Core) applied-regulations result for an item (ACE agency APH; core programs AAC/ABS/APQ/AVS). Item info appears once; the remaining fields are the inferred PGA message-set records — PG01 identity (processingCode/intendedUse), PG02 product code, PG05 taxon, PG06 source, PG10 characteristics, PG14 required LPCO. Each inferred value carries a 0-1 `confidenceScore` by grounding tier so the (deferred) compliance prefiller can render low-confidence values as "prefilled — confirm". */
+export type ZonosAppliedRegulationsAphis = ZonosAppliedRegulations & {
+  __typename?: 'AppliedRegulationsAPHIS';
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the APHIS determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** The APHIS category (type/code/name) for the line — deterministic from the HTS mapping. */
+  category: Maybe<ZonosAphisCategory>;
+  /** PG10 commodity qualifiers — the commodity's distinctive attributes (physical state, gender, breed, ...). A mandatory qualifier that couldn't be resolved is surfaced with a null value (confidenceScore 0) for the prefiller to ask. */
+  commodityQualifiers: Maybe<Array<ZonosAphisCommodityQualifier>>;
+  /** The disclaim inferred for this line. Non-null (code A) only when the apply is confident the item is NOT an APHIS-regulated commodity — the determination is inferred, not asked, because the filing audience (postal counter / consumer) can't make it. Null means file the message set (the safe default: regulated, unsure, or a required AQ2 line); the inference is biased toward null. Only AQ1/AQX (may-be-required) lines are disclaimable. */
+  disclaim: Maybe<ZonosAphisDisclaim>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** PG01 intended use (base.sub code) — client-declared or AI-inferred. Mandatory; absent / 0-confidence means ask. */
+  intendedUse: Maybe<ZonosAphisIntendedUse>;
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+  /**
+   * Whether this entry is the whole imported article or a component of a larger article. Echoed from input; defaults to PRODUCT.
+   * @deprecated Mirrors lines[0]; read `lines`, which carries one entry per organism.
+   */
+  itemType: Maybe<ZonosAphisItemType>;
+  /** One commodity line per organism, filer-declared via `AphisItemInput.lines` or one for the whole article. */
+  lines: Array<ZonosAphisLine>;
+  /** PG01 program + processing code (programCode = AAC/ABS/APQ/AVS; code = A01-A05 routing). */
+  processingCode: Maybe<ZonosGovernmentAgencyProcessingCode>;
+  /**
+   * PG02 product code — TSN (resolved taxon) or AVB (vet biologics). Optional; absent when neither applies.
+   * @deprecated Mirrors lines[0]; read `lines`, which carries one entry per organism.
+   */
+  productCode: Maybe<ZonosAphisProductCode>;
+  /** Whether ACIR lists this commodity/origin as prohibited — always definitive (false unless an ACIR record prohibits). When true, no required documents are asserted (you can't file a prohibited commodity) — verify admissibility before filing. */
+  prohibited: Maybe<Scalars['Boolean']>;
+  /**
+   * PG04 reported quantity, in `unitOfMeasure`. Echoed from the apply input; null when the filer didn't supply it.
+   * @deprecated Mirrors lines[0]; read `lines`, which carries one entry per organism.
+   */
+  quantity: Maybe<Scalars['Decimal']>;
+  /** PG14 supporting documents (the ACE "LPCO" — license/permit/certificate/other) required for admissibility, when any apply. */
+  requiredDocuments: Maybe<Array<ZonosAphisDocument>>;
+  /** ACIR-required treatments (e.g. cold treatment, fumigation) the commodity/origin must undergo to be admissible, when any apply. From the same ACIR record as requiredDocuments/prohibited. */
+  requiredTreatments: Maybe<Array<ZonosAphisTreatment>>;
+  /**
+   * PG06 source — source type (267 country of species origin, by default) + the paired country.
+   * @deprecated Mirrors lines[0]; read `lines`, which carries one entry per organism.
+   */
+  source: Maybe<ZonosAphisSource>;
+  /**
+   * PG05 taxon (genus/species), client-supplied or inferred + validated against the APHIS name list.
+   * @deprecated Mirrors lines[0]; read `lines`, which carries one entry per organism.
+   */
+  taxon: Maybe<ZonosAphisTaxon>;
+  /**
+   * PG04 unit of measure for `quantity`. Echoed from the apply input; null when the filer didn't supply it.
+   * @deprecated Mirrors lines[0]; read `lines`, which carries one entry per organism.
+   */
+  unitOfMeasure: Maybe<ZonosAphisUnitOfMeasure>;
+  /** The reporting units of measure APHIS requires for this commodity (e.g. KG weight, AMU animal units). Deterministic from the category; only always-required units are emitted. */
+  unitsOfMeasure: Maybe<Array<ZonosAphisUnitOfMeasureRequirement>>;
+};
+
+/** USDA APHIS Lacey Act applied-regulations result for an item (ACE agency APH, program APL). Item info appears once. The plant `lines` carry the per-line declaration data (genus/species, country of harvest, quantity, value) — echoed from input, with genus/species, country of harvest, and value inferred when the filer omits them. Genus/species (whether supplied or inferred) are validated against the GBIF taxonomic backbone, carrying a confidence score and a validation flag. When the Lacey-flagged item is determined to carry no Lacey-regulated plant material, a `disclaim` is produced instead of declaration lines. */
+export type ZonosAppliedRegulationsApl = ZonosAppliedRegulations & {
+  __typename?: 'AppliedRegulationsAPL';
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the Lacey determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** Disclaim on the declaration (PG01), set instead of `lines` when the item carries no Lacey-regulated plant material. */
+  disclaim: Maybe<ZonosAplDisclaim>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+  /** The plant/plant-product lines declared for this item — one per genus/species + country-of-harvest combination. Each is declared as either the whole product or a component (see AplLine.type). Empty when the item is disclaimed. */
+  lines: Array<ZonosAplLine>;
+};
+
+export type ZonosAppliedRegulationsCpsc = ZonosAppliedRegulations & {
   __typename?: 'AppliedRegulationsCPSC';
   /** The regulatory agency this result is for. */
   agency: ZonosAgency;
@@ -295,6 +1084,93 @@ export type ZonosAppliedRegulationsCpsc = {
   itemName: Maybe<Scalars['String']>;
   /** List of regulations (CFR codes) that apply to this item, with any applicable exemptions. */
   regulations: Array<ZonosAppliedRegulation>;
+};
+
+/** U.S. EPA applied-regulations result for an item. Item info appears once; a single HTS line can be flagged for more than one EPA program (e.g. a chemical refrigerant → TS1 + ODS/HFC), so the per-program determinations (each the basis of one ACE PGA message set) are carried in `programs`. Entity- and shipment-specific records (EPA registration / establishment numbers, engine family / test-group numbers, the TSCA positive/negative certification choice, bonds, certificates of analysis) are collected downstream via the compliance questionnaire. */
+export type ZonosAppliedRegulationsEpa = ZonosAppliedRegulations & {
+  __typename?: 'AppliedRegulationsEPA';
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the EPA determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+  /** The EPA program determinations for this item — one PGA message set per flagged program (VNE/PS1/PS2/PS3/TS1/ODS/HFC). */
+  programs: Array<ZonosEpaProgramResult>;
+};
+
+/** FDA-specific applied regulations result. */
+export type ZonosAppliedRegulationsFda = ZonosAppliedRegulations & {
+  __typename?: 'AppliedRegulationsFDA';
+  /** Affirmations of Compliance that apply to this item. */
+  affirmationsOfCompliance: Array<ZonosFdaAffirmationOfCompliance>;
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the FDA determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** Disclaim indicator if product is not FDA-regulated (Disclaim A in PG01). */
+  disclaim: Maybe<ZonosAppliedDisclaim>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** FDA Intended Use indicating the import scenario (personal, research, commercial, etc.). */
+  intendedUse: Maybe<ZonosFdaIntendedUse>;
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+  /** PG01 program + processing code. Carries the Government Agency Program Code (always) and the commodity subtype/processing code (e.g. NSF, PRO, PRE) - which is null for commodities with no processing code, such as cosmetics. */
+  processingCode: Maybe<ZonosGovernmentAgencyProcessingCode>;
+  /** FDA product code (7-character code identifying the product type). */
+  productCode: Maybe<ZonosFdaProductCode>;
+};
+
+/** U.S. Fish & Wildlife Service (FWS) applied regulations result — the wildlife import declaration (Form 3-177 / ACE FWS PGA message set). A per-line organism declaration: each line carries the genus/species (validated against the taxonomy backbone), the wildlife product form, CITES source and purpose codes, country of origin, quantity, value, and the CITES Appendix / ESA listing status — inferred when the filer omits them. When the FWS-flagged item is determined to contain no regulated fish or wildlife, a `disclaim` is produced instead of declaration lines. */
+export type ZonosAppliedRegulationsFws = ZonosAppliedRegulations & {
+  __typename?: 'AppliedRegulationsFWS';
+  /** The regulatory agency this result is for. */
+  agency: ZonosAgency;
+  /** AI-generated audit trail explaining the FWS determination (markdown format). */
+  auditTrail: Maybe<Scalars['String']>;
+  /** Disclaim certification when the item contains no regulated wildlife (takes priority over a declaration). */
+  disclaim: Maybe<ZonosFwsDisclaim>;
+  /** Applied regulations ID. */
+  id: Scalars['ID'];
+  /** Intended use of the importation (drives the CITES purpose code). */
+  intendedUse: Maybe<ZonosFwsIntendedUse>;
+  /** The category hierarchy associated with the item. */
+  itemCategories: Maybe<Array<Scalars['String']>>;
+  /** Human readable item description. */
+  itemDescription: Maybe<Scalars['String']>;
+  /** HTS code for this item (validated/classified). */
+  itemHtsCode: Scalars['String'];
+  /** External id for consumer mapping. */
+  itemId: Maybe<Scalars['String']>;
+  /** The material composition of the item. */
+  itemMaterial: Maybe<Scalars['String']>;
+  /** Human readable item name. */
+  itemName: Maybe<Scalars['String']>;
+  /** The wildlife declaration lines — one per organism + country-of-origin combination. Empty when the item is disclaimed. */
+  lines: Array<ZonosFwsLine>;
 };
 
 export type ZonosAppliedRestrictions = {
@@ -352,6 +1228,249 @@ export type ZonosBillingOptionCode =
   | 'THIRD_PARTY'
   | 'UNAVAILABLE';
 
+/** A licensed biological product offered as a name typeahead suggestion (see biologicLicenseSuggest). */
+export type ZonosBiologicLicenseSuggestion = {
+  __typename?: 'BiologicLicenseSuggestion';
+  /** The party the licence number belongs to. */
+  applicantName: Maybe<Scalars['String']>;
+  /** At most four digits — what the BLN affirmation is filed with. */
+  biologicsLicenseNumber: Scalars['String'];
+  /** Licensed, Voluntarily Revoked or Revoked; a revoked licence is still suggested, but ranks last. */
+  licensureStatus: Maybe<Scalars['String']>;
+  /** Rx or Disc (discontinued). */
+  marketingStatus: Maybe<Scalars['String']>;
+  /** The only name 89 licensed products have. */
+  properName: Scalars['String'];
+  /** Null where FDA licenses the product under no brand. */
+  proprietaryName: Maybe<Scalars['String']>;
+  /** Six digits — what the STN affirmation is filed with. */
+  submissionTrackingNumber: Scalars['String'];
+};
+
+/** Federated entity stubs and foreign enums redeclared for local use. Entities resolve at runtime via Apollo Router; enum values MUST match the owning service (do not drift). */
+export type ZonosBrokerageDocument = {
+  __typename?: 'BrokerageDocument';
+  /** Which material or composition property this document proves, such as `COUNTRY_OF_SMELT`. Required when `documentType` is one of the material or composition `*_CERTIFICATE` values. */
+  attributeKey: Maybe<ZonosCompositionAttributeKey>;
+  /** When the document was uploaded. */
+  createdAt: Scalars['DateTime'];
+  /** The kind of document. */
+  documentType: ZonosBrokerageDocumentType;
+  /** When the document expires. Expired documents are excluded from results by default. Null means it does not expire. */
+  expiresAt: Maybe<Scalars['DateTime']>;
+  /** The name of the uploaded file. */
+  fileName: Maybe<Scalars['String']>;
+  /** The file format, such as PDF or PNG. */
+  fileType: ZonosCustomsDocumentFileType;
+  /** A URL where the file can be downloaded. */
+  fileUrl: Scalars['String'];
+  /** A reference number to send along with the document, such as an FDA facility registration number or a CPSC filing ID. */
+  filingReferenceNumber: Maybe<Scalars['String']>;
+  /** A unique ID for the document. */
+  id: Scalars['ID'];
+  /** What this document is attached to. A document can be attached to more than one thing. An empty list means it applies to your whole organization, such as a power of attorney that covers every shipment. */
+  references: Array<ZonosDocumentReference>;
+  /** The origin countries this document covers. Leave empty to apply it to all origins. */
+  shipFromCountry: Maybe<Array<ZonosCountryCode>>;
+  /** The destination countries this document covers. Leave empty to apply it to all destinations. */
+  shipToCountry: Maybe<Array<ZonosCountryCode>>;
+  /** The current status of the document. */
+  status: ZonosBrokerageDocumentStatus;
+  /** The free trade agreement this certificate is claimed under, such as `USMCA` or `EU-UK_TCA`. Set only when `documentType` is `CERTIFICATE_OF_ORIGIN`. */
+  tradeAgreement: Maybe<Scalars['String']>;
+  /** When the document was last changed, including when it was deleted. */
+  updatedAt: Scalars['DateTime'];
+  /** When the document becomes valid. This is the validity date on the document itself, not the date it was uploaded. */
+  validFrom: Maybe<Scalars['DateTime']>;
+  /** When the document stops being valid. */
+  validTo: Maybe<Scalars['DateTime']>;
+};
+
+export type ZonosBrokerageDocumentStagedUpload = {
+  __typename?: 'BrokerageDocumentStagedUpload';
+  /** When the upload URL stops working. After this time you need to request a new one. */
+  expiresAt: Scalars['DateTime'];
+  /** A reference to the pending upload. Pass it back to `brokerageDocumentUploadConfirm` with the document details. */
+  uploadRef: Scalars['String'];
+  /** A temporary URL to upload the file to. Send an HTTP PUT with the file as the request body and a `Content-Type` header matching the file. No other authentication is needed. */
+  uploadUrl: Scalars['String'];
+};
+
+export type ZonosBrokerageDocumentStagedUploadInput = {
+  /** The name of the file you are uploading, such as `certificate.pdf`. Used to determine the file format. */
+  fileName: Scalars['String'];
+};
+
+export type ZonosBrokerageDocumentStatus =
+  /** Document is valid and returned by queries. */
+  | 'ACTIVE'
+  /** The document has been deleted and no longer appears in results. */
+  | 'DELETED';
+
+export type ZonosBrokerageDocumentType =
+  /** Declares the country where goods were produced; used for preferential tariff treatment under trade agreements. */
+  | 'CERTIFICATE_OF_ORIGIN'
+  /** A bundled set of documents accompanying a shipment through customs clearance. */
+  | 'CLEARANCE_PACKAGE'
+  /** Itemized invoice from seller to buyer, used by customs for shipment valuation. */
+  | 'COMMERCIAL_INVOICE'
+  /** Manifest listing items consolidated into a single shipment. */
+  | 'CONSOLIDATION_WORKSHEET'
+  /** Foundry declaration of country of cast — for cast metal products. */
+  | 'COUNTRY_OF_CAST_CERTIFICATE'
+  /** Declares the country where the metal was both melted and poured. */
+  | 'COUNTRY_OF_MELT_AND_POUR_CERTIFICATE'
+  /** Country of origin certificate for material/composition. Distinct from CERTIFICATE_OF_ORIGIN, which is the trade-preferential origin cert (USMCA, EU-UK). */
+  | 'COUNTRY_OF_ORIGIN_CERTIFICATE'
+  /** Mill declaration of country of pour — Section 232 steel tariff. */
+  | 'COUNTRY_OF_POUR_CERTIFICATE'
+  /** Smelter declaration of country of smelt — Section 232 aluminum tariff. */
+  | 'COUNTRY_OF_SMELT_CERTIFICATE'
+  /** CPSC Children's Product Certificate — required for products designed primarily for children ≤12. Issued by importer/manufacturer based on third-party CPSC-accredited lab testing. */
+  | 'CPSC_CPC'
+  /** CPSC General Conformity Certificate — required for non-children's consumer products subject to CPSC rules. Issued by importer/manufacturer based on test results. */
+  | 'CPSC_GCC'
+  /** Financial guarantee ensuring payment of duties, taxes, and penalties owed to customs. */
+  | 'CUSTOMS_BOND'
+  /** Invoice from a carrier or broker for duties, taxes, and brokerage fees. */
+  | 'CUSTOMS_DUTY_INVOICE'
+  /** DOT/NHTSA HS-7 Declaration — motor vehicle import declaration for vehicles, equipment, and tires. */
+  | 'DOT_HS7'
+  /** Formal declaration of imported goods (e.g., CBP Form 7501 for US imports). */
+  | 'ENTRY_SUMMARY'
+  /** EPA Form 3520-1 — Declaration of Conformity for nonroad and heavy-duty engines, vehicles, and equipment. */
+  | 'EPA_FORM_3520_1'
+  /** EPA Form 3520-21 — Declaration of Conformity for imported on-road vehicles and engines. */
+  | 'EPA_FORM_3520_21'
+  /** EPA TSCA Certification — Toxic Substances Control Act import certification for chemicals. */
+  | 'EPA_TSCA_CERTIFICATION'
+  /** FCC Form 740 — Statement Regarding the Importation of Radio Frequency Devices Capable of Causing Harmful Interference. */
+  | 'FCC_FORM_740'
+  /** FDA Facility Registration — registration number identifying a foreign or domestic food/drug/device facility regulated by FDA. */
+  | 'FDA_FACILITY_REGISTRATION'
+  /** FDA Prior Notice — required pre-arrival notification for imported food shipments under the Bioterrorism Act. */
+  | 'FDA_PRIOR_NOTICE'
+  /** Importer Security Filing (ISF 10+2), required before vessel loading for US ocean imports. */
+  | 'ISF'
+  /** Generic material/composition certificate (e.g., fabric content, alloy spec). */
+  | 'MATERIAL_CERTIFICATE'
+  /** Mill Test Certificate (MTC/MTR) — full material composition + mechanical properties report. */
+  | 'MILL_TEST_CERTIFICATE'
+  /** A brokerage document that does not fit the other categories. */
+  | 'OTHER'
+  /** Itemized list of the contents of each package or carton in a shipment. */
+  | 'PACKING_LIST'
+  /** Authorizes a customs broker to act on the importer's behalf. */
+  | 'POWER_OF_ATTORNEY'
+  /** TTB Certificate of Label Approval (COLA) — required for imported alcoholic beverages. */
+  | 'TTB_COLA'
+  /** USDA Phytosanitary Certificate — verifies plant or plant-product imports are free of pests and diseases. */
+  | 'USDA_PHYTOSANITARY_CERTIFICATE'
+  /** USFWS Form 3-177 — Declaration for Importation or Exportation of Fish or Wildlife (and CITES-related products). */
+  | 'USFWS_FORM_3_177';
+
+export type ZonosBrokerageDocumentUploadConfirmInput = {
+  /** Which material or composition property this document proves, such as `COUNTRY_OF_SMELT`. Required when `documentType` is one of the material or composition `*_CERTIFICATE` values. */
+  attributeKey?: InputMaybe<ZonosCompositionAttributeKey>;
+  /** The kind of document. */
+  documentType: ZonosBrokerageDocumentType;
+  /** When the document expires. Leave null if it does not expire. Some document types have a known validity period and will be given an expiry automatically. */
+  expiresAt?: InputMaybe<Scalars['DateTime']>;
+  /** The name of the file. Must match the name you gave to `brokerageDocumentStagedUpload`. */
+  fileName: Scalars['String'];
+  /** A reference number to store with the document, such as an FDA facility registration number or a CPSC filing ID. */
+  filingReferenceNumber?: InputMaybe<Scalars['String']>;
+  /** What to attach this document to. Omit it for a document that applies to your whole organization. */
+  references?: InputMaybe<Array<ZonosDocumentReferenceInput>>;
+  /** The origin countries this document covers. Leave empty to apply it to all origins. */
+  shipFromCountry?: InputMaybe<Array<ZonosCountryCode>>;
+  /** The destination countries this document covers. Leave empty to apply it to all destinations. */
+  shipToCountry?: InputMaybe<Array<ZonosCountryCode>>;
+  /** The free trade agreement you are claiming under, such as `USMCA` or `EU-UK_TCA`. Required when `documentType` is `CERTIFICATE_OF_ORIGIN`. */
+  tradeAgreement?: InputMaybe<Scalars['String']>;
+  /** The reference returned by `brokerageDocumentStagedUpload`, identifying the file you uploaded. */
+  uploadRef?: InputMaybe<Scalars['String']>;
+  /** When the document becomes valid. This is the validity date on the document itself, not the date you upload it. */
+  validFrom?: InputMaybe<Scalars['DateTime']>;
+  /** When the document stops being valid. */
+  validTo?: InputMaybe<Scalars['DateTime']>;
+};
+
+export type ZonosBrokerageDocumentUploadInput = {
+  /** Which material or composition property this document proves, such as `COUNTRY_OF_SMELT`. Required when `documentType` is one of the material or composition `*_CERTIFICATE` values. */
+  attributeKey?: InputMaybe<ZonosCompositionAttributeKey>;
+  /** The kind of document. */
+  documentType: ZonosBrokerageDocumentType;
+  /** When the document expires. Leave null if it does not expire. Some document types have a known validity period and will be given an expiry automatically. */
+  expiresAt?: InputMaybe<Scalars['DateTime']>;
+  /** The file itself, base64-encoded. */
+  fileContent: Scalars['String'];
+  /** The name of the file, such as `certificate.pdf`. Used to determine the file format. */
+  fileName: Scalars['String'];
+  /** A reference number to store with the document, such as an FDA facility registration number or a CPSC filing ID. */
+  filingReferenceNumber?: InputMaybe<Scalars['String']>;
+  /** What to attach this document to. Omit it for a document that applies to your whole organization, such as a power of attorney that covers every shipment. */
+  references?: InputMaybe<Array<ZonosDocumentReferenceInput>>;
+  /** The origin countries this document covers. Leave empty to apply it to all origins. */
+  shipFromCountry?: InputMaybe<Array<ZonosCountryCode>>;
+  /** The destination countries this document covers. Leave empty to apply it to all destinations. */
+  shipToCountry?: InputMaybe<Array<ZonosCountryCode>>;
+  /** The free trade agreement you are claiming under, such as `USMCA` or `EU-UK_TCA`. Required when `documentType` is `CERTIFICATE_OF_ORIGIN`. */
+  tradeAgreement?: InputMaybe<Scalars['String']>;
+  /** When the document becomes valid. This is the validity date on the document itself, not the date you upload it. */
+  validFrom?: InputMaybe<Scalars['DateTime']>;
+  /** When the document stops being valid. */
+  validTo?: InputMaybe<Scalars['DateTime']>;
+};
+
+/** Customer-facing customs-clearance status for an entry, derived from the filing lifecycle plus CBP/PGA disposition events. Derivation precedence: CANCELLED, REJECTED, the holds (PGA_HOLD, CBP_EXAM, CBP_HOLD), PGA_REVIEW, RELEASED, PGA_MAY_PROCEED, ACCEPTED, FILED, PROCESSING. */
+export type ZonosBrokerageEntryClearanceStatus =
+  /** CBP accepted the entry on both processing streams. */
+  | 'ACCEPTED'
+  /** The entry was cancelled, by CBP or by broker withdrawal. Outranks every other bucket while it stands. */
+  | 'CANCELLED'
+  /** CBP intensive examination required. */
+  | 'CBP_EXAM'
+  /** CBP hold in effect (port hold, document hold, or movement denial). */
+  | 'CBP_HOLD'
+  /** Transmitted to CBP; awaiting disposition. */
+  | 'FILED'
+  /** Partner Government Agency hold in effect, or PGA rejected the data. */
+  | 'PGA_HOLD'
+  /** PGA cleared the goods (may proceed); CBP release not yet reported. */
+  | 'PGA_MAY_PROCEED'
+  /** Unresolved PGA review; takes precedence over CBP release but is not a hold. */
+  | 'PGA_REVIEW'
+  /** Entry is being assembled or submitted — not yet adjudicated by CBP. */
+  | 'PROCESSING'
+  /** CBP rejected the entry. The broker corrects and refiles. */
+  | 'REJECTED'
+  /** CBP released the goods (cargo release SO 98, or One USG). */
+  | 'RELEASED';
+
+/** Filters for the entries query. All fields optional, combined with AND. */
+export type ZonosBrokerageEntryFilter = {
+  /** Only entries on a master whose arrivalDate falls within this range. */
+  arrivalDate?: InputMaybe<ZonosDateTimeRange>;
+  /** Only entries whose customer-facing status is in one of these buckets. */
+  clearanceStatus?: InputMaybe<Array<ZonosBrokerageEntryClearanceStatus>>;
+  /** Exact match on the owning organization. Ignored unless the caller has cross-organization access. */
+  organizationId?: InputMaybe<Scalars['ID']>;
+};
+
+/** CBP entry type code. */
+export type ZonosBrokerageEntryType =
+  /** Type 01 — formal consumption entry. */
+  | 'FORMAL'
+  /** Type 11 — informal entry (free and dutiable). */
+  | 'INFORMAL'
+  /** Type 13 — postal entry. */
+  | 'POSTAL';
+
+export type ZonosBrokerageFeedMode =
+  | 'LIVE'
+  | 'TEST';
+
 /** End use of the imported goods, determines filing treatment. */
 export type ZonosBrokerageNatureOfTransaction =
   /** Documents or correspondence only. */
@@ -365,7 +1484,7 @@ export type ZonosBrokerageNatureOfTransaction =
   /** Returned goods. */
   | 'RETURN';
 
-/** Partner Government Agencies recognized by Brokerage. Country-prefixed so non-US PGAs (UK, EU, CA, ...) slot in alongside US ones without renames. OTHER is a transitional fallback — when ItemDgs's catalog grows beyond this list, the resolver maps unknown strings to OTHER and warn-logs them so coverage gaps surface in operational logs. */
+/** Partner Government Agencies recognized for brokerage filing. Country-prefixed so non-US PGAs (UK, EU, CA, ...) sit alongside US ones. OTHER covers any agency not yet enumerated here. */
 export type ZonosBrokeragePgaAgency =
   /** Fallback for agency strings from upstream catalogs that have no enum mapping yet. Always paired with a warn-log in the resolver so unknown agencies are visible operationally. */
   | 'OTHER'
@@ -400,9 +1519,9 @@ export type ZonosBrokeragePgaAgency =
   /** US Fish and Wildlife Service. */
   | 'US_USFWS';
 
-/** Mirror of ItemDgs's @inaccessible PgaRequirementStrictness, brought into the brokerage subgraph. */
+/** Whether a Partner Government Agency requirement applies unconditionally or only in certain cases. */
 export type ZonosBrokeragePgaRequirementStrictness =
-  /** Filing may be required depending on shipment specifics; resolve via RestrictedItemDgs. */
+  /** Filing may be required depending on the specifics of the shipment. */
   | 'CONDITIONAL'
   /** Filing is required. */
   | 'REQUIRED';
@@ -413,23 +1532,23 @@ export type ZonosBrokerageTransportationMode =
   | 'AIR_CONTAINER'
   /** Air, non-containerized. */
   | 'AIR_NON_CONTAINER'
-  /** Auto. */
+  /** Auto. Mapped to truck, non-containerized. */
   | 'AUTO'
-  /** Border water-borne (Mexico/Canada only). */
+  /** Border water-borne. Mapped to vessel, non-containerized. */
   | 'BORDER_WATERBORNE'
-  /** Fixed transport installations (pipeline, powerhouse). */
+  /** Fixed transport installation. Mapped to truck, non-containerized. */
   | 'FIXED_TRANSPORT'
-  /** Mail. */
+  /** Mail. Mapped to air, non-containerized. */
   | 'MAIL'
-  /** Passenger, hand-carried. */
+  /** Passenger, hand-carried. Mapped to air, non-containerized. */
   | 'PASSENGER_HAND_CARRIED'
-  /** Pedestrian. */
+  /** Pedestrian. Mapped to truck, non-containerized. */
   | 'PEDESTRIAN'
   /** Rail, containerized. */
   | 'RAIL_CONTAINER'
   /** Rail, non-containerized. */
   | 'RAIL_NON_CONTAINER'
-  /** Road, other (foot and animal-borne). */
+  /** Road, other. Mapped to truck, non-containerized. */
   | 'ROAD_OTHER'
   /** Truck, containerized. */
   | 'TRUCK_CONTAINER'
@@ -463,6 +1582,12 @@ export type ZonosBulkJobStatus =
   | 'FILE_SAVED'
   | 'INITIALIZED'
   | 'PROCESSING';
+
+export type ZonosBundleImportMode =
+  /** Import bundles only — child catalog items must already exist. */
+  | 'BUNDLE_ONLY'
+  /** Import bundles along with their component catalog items in a single CSV. */
+  | 'BUNDLE_WITH_ITEMS';
 
 /** Extends the Carrier type to include associated parties. */
 export type ZonosCarrier = {
@@ -534,8 +1659,11 @@ export type ZonosCarrierAccountApiUsage =
 /** Enum value representing the list of carriers that are supported in the `carrierAccountConnect` mutation. */
 export type ZonosCarrierAccountCode =
   | 'APC'
+  | 'ASENDIA'
   | 'DHL'
+  | 'DHL_ECOMMERCE'
   | 'FEDEX'
+  | 'JAPAN_POST'
   | 'UPS';
 
 export type ZonosCarrierAccountConnectCredentialInput = {
@@ -776,15 +1904,6 @@ export type ZonosCarrierBillingInvoiceStatusTransition = {
   status: ZonosCarrierBillingInvoiceStatus;
 };
 
-/** Carrier Connection */
-export type ZonosCarrierConnection = {
-  __typename?: 'CarrierConnection';
-  /** Field edges */
-  edges: Maybe<Array<Maybe<ZonosCarrierEdge>>>;
-  /** Field pageInfo */
-  pageInfo: ZonosPageInfo;
-};
-
 /** Specifies the components of the credential required to access a `Carrier`'s API. */
 export type ZonosCarrierCredential = {
   __typename?: 'CarrierCredential';
@@ -806,18 +1925,24 @@ export type ZonosCarrierCredential = {
   validationPattern: Maybe<Scalars['String']>;
 };
 
+/** Credential components stored on a CarrierAccount. Deliberately a separate type from CarrierCortex's CarrierApiCredentialTypeCode, so the two subgraphs can compose without federation's identical-value-set rule for enums used in both input and output position. They are NOT independent: CarrierCortex converts values of its type into this one by name when it writes carrier accounts back, and ShipmentRating converts this type into CarrierCortex's when it rates (RatingRequest). A value added to either side MUST be added to the other -- CarrierCortexDgs api/src/main/resources/com/zonos/schema/enums.graphqls -- or those conversions throw IllegalArgumentException at runtime. Nothing checks this at build time. */
 export type ZonosCarrierCredentialTypeCode =
+  | 'ACCESS_KEY'
   | 'ACCESS_LICENSE_NUMBER'
   | 'ACCOUNT_NUMBER'
   | 'API_KEY'
   | 'API_PASSWORD'
   | 'API_TOKEN'
+  | 'BEARER_TOKEN'
   | 'CUSTOMER_ID'
   | 'METER_NUMBER'
   | 'PAYMENT_COUNTRY_CODE'
+  | 'REFRESH_TOKEN'
   | 'SENDER_LOCATION'
   | 'SHIPPER_NUMBER'
   | 'SITE_ID'
+  | 'TRACKING_EMAIL'
+  | 'TRACKING_PASSWORD'
   | 'USER_ID';
 
 export type ZonosCarrierDocumentSubmission = {
@@ -830,15 +1955,6 @@ export type ZonosCarrierDocumentSubmission = {
   externalId: Scalars['String'];
   /** A unique ID associated with the CarrierDocumentSubmission */
   id: Scalars['ID'];
-};
-
-/** Carrier Edge */
-export type ZonosCarrierEdge = {
-  __typename?: 'CarrierEdge';
-  /** Field cursor */
-  cursor: Maybe<Scalars['String']>;
-  /** Field node */
-  node: Maybe<ZonosCarrier>;
 };
 
 export type ZonosCarrierInvoiceAccountNumberMapping = ZonosNode & {
@@ -1067,6 +2183,26 @@ export type ZonosCarrierInvoicePersonCreateInput = {
   phone?: InputMaybe<Scalars['String']>;
 };
 
+/** What a carrier's integration can produce a label for. */
+export type ZonosCarrierLabelCapability = {
+  __typename?: 'CarrierLabelCapability';
+  /** The carrier name exactly as supplied, so results can be joined back without re-normalizing. */
+  carrierName: Scalars['String'];
+  /** Empty when the name matches no known label integration. */
+  supportedLabelTypes: Array<ZonosCarrierLabelType>;
+};
+
+/** A kind of label a carrier integration can emit. Values no carrier reports yet are listed so adding support later is a data change rather than a schema change. */
+export type ZonosCarrierLabelType =
+  /** Standard forward label, merchant to customer. Every integrated carrier supports this. */
+  | 'OUTBOUND'
+  /** The carrier emails the return label to the customer on request. */
+  | 'RETURN_EMAIL'
+  /** The carrier collects from the customer with a driver-supplied label (e.g. FedEx Tag). */
+  | 'RETURN_PICKUP'
+  /** A printed return label given to the customer to attach themselves. */
+  | 'RETURN_PRINT_LABEL';
+
 /** Carrier packaging type with dimensions and weight limits. */
 export type ZonosCarrierPackagingType = {
   __typename?: 'CarrierPackagingType';
@@ -1082,6 +2218,15 @@ export type ZonosCarrierPackagingType = {
   maxWeight: Scalars['Decimal'];
   /** Width in inches. */
   width: Scalars['Decimal'];
+};
+
+export type ZonosCarrierRatingReplayInput = {
+  /** The carrier code to replay against (e.g. "ups", "fedex") */
+  carrierCode: Scalars['String'];
+  /** The root ID whose shipment (ship-from/to, cartons, items) is used to rebuild the request */
+  rootId: Scalars['ID'];
+  /** One or more service level codes to replay; each runs as its own live carrier call */
+  serviceLevelCodes: Array<Scalars['String']>;
 };
 
 /** A search for a specific `Carrier` or group of carriers. */
@@ -1199,6 +2344,45 @@ export type ZonosCartEdge = {
   node: ZonosCart;
 };
 
+export type ZonosCartHistory = {
+  __typename?: 'CartHistory';
+  amountSubtotals: ZonosCartHistoryAmountSubtotals;
+  calculationMethod: Scalars['String'];
+  cartId: Scalars['ID'];
+  landedCostId: Scalars['ID'];
+  lines: Array<ZonosCartHistoryLine>;
+  /** Null on the first quote for this cart, or when no prior LC matches. */
+  previousLandedCostId: Maybe<Scalars['ID']>;
+  serviceLevelCode: Scalars['String'];
+};
+
+/** Per-quote incremental totals, summed from the matching lines. The duty, tax, and fee totals can be negative when a quote grants a discount or credit. */
+export type ZonosCartHistoryAmountSubtotals = {
+  __typename?: 'CartHistoryAmountSubtotals';
+  duties: Scalars['Decimal'];
+  fees: Scalars['Decimal'];
+  items: Scalars['Decimal'];
+  shipping: Scalars['Decimal'];
+  taxes: Scalars['Decimal'];
+};
+
+export type ZonosCartHistoryLine = {
+  __typename?: 'CartHistoryLine';
+  /** How much this line adds on top of what was already quoted/charged for this cart. Can be negative, which credits back rather than charges. */
+  amountToCharge: Scalars['Decimal'];
+  currentAmount: Scalars['Decimal'];
+  description: Scalars['String'];
+  /** The calculation formula for this line, when available (e.g. for invoicing/reporting). */
+  formula: Maybe<Scalars['String']>;
+  /** Null for non-item lines such as carrier fees. */
+  itemId: Maybe<Scalars['ID']>;
+  /** DUTY, TAX, or FEE */
+  lineType: Scalars['String'];
+  priorAmount: Scalars['Decimal'];
+  /** e.g. 'item', 'carrier', 'duty_processing' */
+  type: Scalars['String'];
+};
+
 /** Metadata for the cart */
 export type ZonosCartMetadata = {
   __typename?: 'CartMetadata';
@@ -1259,6 +2443,15 @@ export type ZonosCartUpsertInput = {
   items: Array<ZonosItemInput>;
   /** metadata for the cart */
   metadata?: InputMaybe<Array<ZonosCartMetadataInput>>;
+};
+
+export type ZonosCartWorkflowInput = {
+  /** Existing cart ID to append items to. When null, a new QUOTE cart is created. */
+  id?: InputMaybe<Scalars['ID']>;
+  /** Items to create and add to the cart. */
+  itemsToAdd?: InputMaybe<Array<ZonosItemCreateWorkflowInput>>;
+  /** The `Item` IDs to remove from the cart. */
+  itemsToRemove?: InputMaybe<Array<Scalars['ID']>>;
 };
 
 export type ZonosCarton = {
@@ -1455,6 +2648,8 @@ export type ZonosCatalogItem = {
   catalogItemUrl: Maybe<Scalars['String']>;
   /** The categories that describes the `CatalogItem` */
   categories: Array<Scalars['String']>;
+  /** The channel integration that sourced this `CatalogItem` (e.g. "shopify", "etsy"). Null for items created directly. */
+  channel: Maybe<Scalars['String']>;
   /** The classificationId if a catalogItem was created through classification */
   classification: Maybe<Scalars['ID']>;
   /** Country configuration for the item. */
@@ -1473,7 +2668,13 @@ export type ZonosCatalogItem = {
   description: Maybe<Scalars['String']>;
   /** Allows user to remove items from duties, taxes, or fee calculations */
   dutyTaxFeeConfiguration: Maybe<ZonosDutyTaxFeeConfiguration>;
-  /** Whether this `CatalogItem` is referenced as a child in any kit. */
+  gtin: Maybe<Scalars['String']>;
+  /** Whether this `CatalogItem` is referenced as a child in any bundle. */
+  hasBundleReferences: Maybe<Scalars['Boolean']>;
+  /**
+   * Whether this `CatalogItem` is referenced as a child in any bundle.
+   * @deprecated Use hasBundleReferences instead
+   */
   hasKitReferences: Scalars['Boolean'];
   /** The default hsCode for the product */
   hsCode: Maybe<Scalars['String']>;
@@ -1487,6 +2688,9 @@ export type ZonosCatalogItem = {
   itemKey: Scalars['String'];
   /** Determines whether or not an item can be physically shipped. */
   itemType: Maybe<ZonosItemType>;
+  /** The manufacturer `Party` of this `CatalogItem`. */
+  manufacturerParty: Maybe<ZonosParty>;
+  manufacturerProductId: Maybe<Scalars['String']>;
   /**
    * The `CatalogItem` material composition.
    * @deprecated use productComposition instead
@@ -1620,13 +2824,23 @@ export type ZonosCatalogItemExportJobCreateInput = {
   action: ZonosCatalogItemExportJobAction;
   /** itemType i.e. BUNDLE, PHYSICAL_GOOD etc... */
   itemType?: InputMaybe<ZonosItemType>;
+  /** Optional filter for bundle packing preference (ASSIGNED_BOX or CONSOLIDATED). */
+  packingPreference?: InputMaybe<ZonosPackingPreference>;
 };
 
 export type ZonosCatalogItemFilter = {
+  /** Filter by the channel that sourced this `CatalogItem` (e.g. "shopify", "etsy"). */
+  channel?: InputMaybe<Scalars['String']>;
+  /** Filter by the `CatalogItem` countryOfOrigin. Matches any of the given countries. */
+  countriesOfOrigin?: InputMaybe<Array<ZonosCountryCode>>;
   /** Filter to catalogItems with `amount` set. */
   hasAmount?: InputMaybe<Scalars['Boolean']>;
+  /** Filter by the `CatalogItem` default hsCode. Prefix match, ignoring punctuation (e.g. "6109" or "6109.10"); matches any of the given codes. */
+  hsCodes?: InputMaybe<Array<Scalars['String']>>;
   /** Filter by the `CatalogItem` itemType. */
   itemType?: InputMaybe<ZonosItemType>;
+  /** Filter by multiple `CatalogItem` itemTypes. Items with null itemType are included when this filter is used. */
+  itemTypes?: InputMaybe<Array<ZonosItemType>>;
   /** Filter by the metadata key and value. */
   metadata?: InputMaybe<Array<ZonosKeyValueFilterInput>>;
   /** Fuzzy search by the `CatalogItem` name. */
@@ -1721,14 +2935,16 @@ export type ZonosCatalogItemInput = {
   description?: InputMaybe<Scalars['String']>;
   /** Allows user to remove items from duties, taxes, or fee calculations */
   dutyTaxFeeConfiguration?: InputMaybe<ZonosDutyTaxFeeConfiguration>;
+  gtin?: InputMaybe<Scalars['String']>;
   /** The default hsCode for the product */
   hsCode?: InputMaybe<Scalars['String']>;
-  /** When providing a country-specific HS code the ship-to country is needed. @deprecated use `CatalogItemHsCodeInput` instead */
-  hsCodeShipToCountry?: InputMaybe<ZonosCountryCode>;
   /** The url of an image. */
   imageUrl?: InputMaybe<Scalars['String']>;
   /** Determines whether or not an item can be physically shipped. */
   itemType?: InputMaybe<ZonosItemType>;
+  /** The manufacturer `Party` of this `CatalogItem`. Creates the `Party`; omitted keeps the current one on a non-null update. */
+  manufacturerParty?: InputMaybe<ZonosItemManufacturerPartyCreateInput>;
+  manufacturerProductId?: InputMaybe<Scalars['String']>;
   /** The `CatalogItem` material composition. @deprecated(reason: "use productComposition instead") */
   material?: InputMaybe<Scalars['String']>;
   /** A `CatalogItem` physical measurements. */
@@ -1755,15 +2971,41 @@ export type ZonosCatalogItemInput = {
   sku?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosCatalogItemMatchBehavior =
+  | 'OPTIONAL'
+  | 'REQUIRED';
+
+/** Narrows the obligations a catalog item reports. The same shape as the `complianceObligations` query's filter, cut down to what a per-item read can vary — the item and its route are already fixed by the field's parent. */
+export type ZonosCatalogItemObligationFilter = {
+  /** Keeps only obligations whose program's ACTIVE questionnaire asks something at these levels; null/empty = every obligation. Pass the same set the client renders, so an obligation it would open no line for stops raising a flag. */
+  requirements?: InputMaybe<Array<ZonosQuestionRequirement>>;
+};
+
+/** Deliberately NOT named CatalogItemConnection: ItemDgs already owns that type for its own catalogItems query, and a same-named type with a different shape would break composition. */
+export type ZonosCatalogItemOpenQuestionnaireConnection = {
+  __typename?: 'CatalogItemOpenQuestionnaireConnection';
+  edges: Array<ZonosCatalogItemOpenQuestionnaireEdge>;
+  pageInfo: ZonosPageInfo;
+  /** Total distinct catalog items with at least one non-current compliance obligation. */
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosCatalogItemOpenQuestionnaireEdge = {
+  __typename?: 'CatalogItemOpenQuestionnaireEdge';
+  cursor: Scalars['String'];
+  /** Federated CatalogItem reference; only the key is resolved here, the gateway fills in the rest. */
+  node: ZonosCatalogItem;
+};
+
 export type ZonosCatalogItemReference = {
   __typename?: 'CatalogItemReference';
   /** The reference catalog item */
   catalogItem: ZonosCatalogItem;
-  /** The Kit Box this item is assigned to */
+  /** The bundle box this item is assigned to */
   packageOptionId: Maybe<Scalars['ID']>;
-  /** Index identifying the specific package option instance within a kit (e.g. packageOptionId + instance index) */
+  /** Index identifying the specific package option instance within a bundle (e.g. packageOptionId + instance index) */
   packageOptionIdIndex: Maybe<Scalars['String']>;
-  /** Allows item to have it's own packing prefence NOTE: This is for backwards compatibility with old kit flow. */
+  /** Allows item to have its own packing preference. NOTE: This is for backwards compatibility with old bundle flow. */
   packingPreference: Maybe<ZonosPackingPreference>;
   /** The ratio of the parent item price that should be applied to this reference item */
   priceRatio: Maybe<Scalars['Decimal']>;
@@ -1772,11 +3014,11 @@ export type ZonosCatalogItemReference = {
 export type ZonosCatalogItemReferenceInput = {
   /** The reference catalog item */
   catalogItem: Scalars['ID'];
-  /** The Kit Box this item is assigned to */
+  /** The bundle box this item is assigned to */
   packageOptionId?: InputMaybe<Scalars['ID']>;
   /** Groups items that share the same physical box instance (allows multiple cartons of the same box type) */
   packageOptionIdIndex?: InputMaybe<Scalars['String']>;
-  /** Allows item to have it's own packing prefence NOTE: This is for backwards compatibility with old kit flow. */
+  /** Allows item to have its own packing preference. NOTE: This is for backwards compatibility with old bundle flow. */
   packingPreference?: InputMaybe<ZonosPackingPreference>;
   /** The ratio of the parent item price that should be applied to this reference item */
   priceRatio?: InputMaybe<Scalars['Decimal']>;
@@ -1787,14 +3029,69 @@ export type ZonosCatalogItemSource =
   | 'LEGACY_MIGRATION'
   | 'USER_PROVIDED';
 
+export type ZonosCatalogItemStageUploadInput = {
+  /** Controls how bundles are imported. Defaults to BUNDLE_ONLY if not specified. */
+  bundleImportMode?: InputMaybe<ZonosBundleImportMode>;
+  /** The type of item being uploaded (e.g. BUNDLE, PHYSICAL_GOOD). */
+  itemType?: InputMaybe<ZonosItemType>;
+};
+
 export type ZonosCatalogItemUpdateMethod =
   /** ALL: Updates all fields of the catalog item based on the input provided. This method sets fields to null if null values are provided in the input, ensuring the catalog item exactly mirrors the input. */
   | 'ALL'
   /** NON_NULL: Updates existing catalog item fields with non-null values provided in the input. Fields in the input that are null are ignored, and corresponding existing fields are not modified. */
   | 'NON_NULL';
 
+export type ZonosCatalogOptionKeyInput = {
+  catalog: Scalars['String'];
+  code: Scalars['String'];
+};
+
+/** One selectable option in a named catalog — the menu a classifier prompt shows the model and the dropdown the questionnaire shows the filer. */
+export type ZonosCatalogOptionRecord = {
+  __typename?: 'CatalogOptionRecord';
+  catalog: Scalars['String'];
+  code: Scalars['String'];
+  displayOrder: Scalars['Int'];
+  intent: Maybe<Scalars['String']>;
+  label: Scalars['String'];
+  scopes: Array<ZonosCatalogOptionScope>;
+};
+
+/** What puts an option on a menu. */
+export type ZonosCatalogOptionScope = {
+  __typename?: 'CatalogOptionScope';
+  scopeRank: Scalars['Int'];
+  scopeSibling: Maybe<Scalars['String']>;
+  scopeType: Scalars['String'];
+  scopeValue: Scalars['String'];
+};
+
+/** One menu an option is offered on. `scopeType` is `ALL` (every menu this catalog has), `DEFAULT` (the menu to fall back to when nothing else matched), `HTS_CHAPTER`, or `ANSWER:<question code>`. */
+export type ZonosCatalogOptionScopeInput = {
+  /** Precedence of this scope type: the lowest-ranked one that selects anything decides the menu, so a processing code's own menu replaces its program's. Defaults to 1. */
+  scopeRank?: InputMaybe<Scalars['Int']>;
+  /** The catalog this scope's values are codes of, for a scope narrower than the one an up-front enumeration is keyed on. Null leaves the scope out of that enumeration. */
+  scopeSibling?: InputMaybe<Scalars['String']>;
+  scopeType: Scalars['String'];
+  /** The value that selects the option; defaults to `*` for a scope type taking none. */
+  scopeValue?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosCatalogOptionUpsertInput = {
+  catalog: Scalars['String'];
+  code: Scalars['String'];
+  displayOrder: Scalars['Int'];
+  /** The declared-import-intent bucket this option satisfies, where its catalog has one — an IntendedUseType name. Null for an option tied to no bucket. */
+  intent?: InputMaybe<Scalars['String']>;
+  label: Scalars['String'];
+  scopes?: InputMaybe<Array<ZonosCatalogOptionScopeInput>>;
+};
+
 export type ZonosCatalogSetting = {
   __typename?: 'CatalogSetting';
+  /** Whether an `Item` must match a `CatalogItem` by `productId` or `sku`. REQUIRED fails the request when it does not. */
+  catalogItemMatchBehavior: ZonosCatalogItemMatchBehavior;
   /** The date and time the `CatalogSetting` was created. */
   createdAt: Scalars['DateTime'];
   /** The user who created the `CatalogSetting`. */
@@ -1821,6 +3118,8 @@ export type ZonosCatalogSetting = {
 };
 
 export type ZonosCatalogSettingCreateInput = {
+  /** Whether an `Item` must match a `CatalogItem` by `productId` or `sku`. REQUIRED fails the request when it does not. */
+  catalogItemMatchBehavior?: InputMaybe<ZonosCatalogItemMatchBehavior>;
   /** The inclusive price status. */
   inclusivePriceStatus?: InputMaybe<ZonosInclusivePriceStatus>;
   /** The unique key preference for finding a `CatalogItem`. */
@@ -1848,6 +3147,8 @@ export type ZonosCatalogSettingMigrationInput = {
 };
 
 export type ZonosCatalogSettingUpdateInput = {
+  /** Whether an `Item` must match a `CatalogItem` by `productId` or `sku`. REQUIRED fails the request when it does not. */
+  catalogItemMatchBehavior?: InputMaybe<ZonosCatalogItemMatchBehavior>;
   /** The unique key preference for finding a `CatalogItem`. */
   itemKeyPreference?: InputMaybe<ZonosItemKeyPreference>;
   /** The native currency for an organization. */
@@ -1859,6 +3160,132 @@ export type ZonosCatalogSettingUpdateInput = {
 export type ZonosCatalogStatus =
   | 'DISABLED'
   | 'ENABLED';
+
+export type ZonosCategory = {
+  __typename?: 'Category';
+  /** The date and time the `Category` was created. */
+  createdAt: Scalars['DateTime'];
+  /** The user who created the `Category`. */
+  createdBy: Scalars['ID'];
+  /** The id of the `Category`. */
+  id: Scalars['ID'];
+  /** The organization the `Category` belongs to. */
+  organizationId: Scalars['ID'];
+  /** The category hierarchy (root → leaf). */
+  path: Array<Scalars['String']>;
+  /** The date and time the `Category` was last updated. */
+  updatedAt: Scalars['DateTime'];
+  /** The user who last updated the `Category`. */
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosCategoryConnection = {
+  __typename?: 'CategoryConnection';
+  edges: Array<ZonosCategoryEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosCategoryCreateInput = {
+  /** The category hierarchy (root → leaf). */
+  path: Array<Scalars['String']>;
+};
+
+export type ZonosCategoryEdge = {
+  __typename?: 'CategoryEdge';
+  cursor: Scalars['String'];
+  node: ZonosCategory;
+};
+
+export type ZonosCategoryUpdateInput = {
+  /** The id of the `Category` to update. */
+  id: Scalars['ID'];
+  /** The new category hierarchy (root → leaf). */
+  path: Array<Scalars['String']>;
+};
+
+export type ZonosCategoryValidateInput = {
+  /** The price of the item. */
+  amount?: InputMaybe<Scalars['Decimal']>;
+  /** The brand of the item. */
+  brand?: InputMaybe<Scalars['String']>;
+  /** The category hierarchy (root → leaf) to validate. */
+  categories: Array<Scalars['String']>;
+  /** The currency the amount is in. */
+  currencyCode?: InputMaybe<ZonosCurrencyCode>;
+  /** The full description associated with the item. */
+  description?: InputMaybe<Scalars['String']>;
+  /** A Global Trade Item Number (GTIN) of the item, such as UPC, EAN, GTIN-8, or GTIN-14. */
+  globalTradeItemNumber?: InputMaybe<Scalars['String']>;
+  /** Base64 encoded image of the item, optionally as a `data:` URL. This is the supported way to supply an image: it is described by the model, and that description informs both candidate retrieval and the verdict. Optional — validation falls back to the text fields alone if the image is absent or cannot be processed. */
+  imageBase64?: InputMaybe<Scalars['String']>;
+  /** The material composition of the item. */
+  material?: InputMaybe<Scalars['String']>;
+  /** The product name or short description. */
+  name: Scalars['String'];
+};
+
+export type ZonosCategoryValidation = {
+  __typename?: 'CategoryValidation';
+  /** The price (echoed from input). */
+  amount: Maybe<Scalars['Decimal']>;
+  /** The brand (echoed from input). */
+  brand: Maybe<Scalars['String']>;
+  /** The category hierarchy that was validated. */
+  categories: Array<Scalars['String']>;
+  /** Confidence (0–1) in the returned verdict. */
+  confidenceScore: Scalars['Decimal'];
+  /** The date and time the `CategoryValidation` was created. */
+  createdAt: Scalars['DateTime'];
+  /** The currency (echoed from input). */
+  currencyCode: Maybe<ZonosCurrencyCode>;
+  /** The description (echoed from input). */
+  description: Maybe<Scalars['String']>;
+  /** The GTIN (echoed from input). */
+  globalTradeItemNumber: Maybe<Scalars['String']>;
+  /** The id of the `CategoryValidation`. */
+  id: Scalars['ID'];
+  /** A pre-signed URL (valid 15 minutes) for the image supplied via `imageBase64`; otherwise the `imageUrl` echoed from input. The upload is asynchronous, so a URL returned by `categoriesValidate` may briefly 404 before the object lands. */
+  imageUrl: Maybe<Scalars['String']>;
+  /** The material (echoed from input). */
+  material: Maybe<Scalars['String']>;
+  /** The product name (echoed from input). */
+  name: Scalars['String'];
+  /** Plausible alternative categories — populated only when `verdict` is `WRONG`. */
+  suggestedCategories: Array<ZonosSuggestedCategory>;
+  /** The verdict for the supplied categories. */
+  verdict: ZonosCategoryValidationVerdict;
+};
+
+export type ZonosCategoryValidationConnection = {
+  __typename?: 'CategoryValidationConnection';
+  edges: Array<ZonosCategoryValidationEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosCategoryValidationEdge = {
+  __typename?: 'CategoryValidationEdge';
+  cursor: Scalars['String'];
+  node: ZonosCategoryValidation;
+};
+
+/** The outcome of validating an item against its assigned categories. */
+export type ZonosCategoryValidationVerdict =
+  /** The item plausibly belongs in the assigned categories. */
+  | 'CORRECT'
+  /** The item clearly does not belong in the assigned categories. */
+  | 'WRONG';
+
+/** Optional filters for the `categoryValidations` query. Filters are combined with AND. */
+export type ZonosCategoryValidationsFilter = {
+  /** Only return validations created at or after this time (inclusive). */
+  createdAfter?: InputMaybe<Scalars['DateTime']>;
+  /** Only return validations created at or before this time (inclusive). */
+  createdBefore?: InputMaybe<Scalars['DateTime']>;
+  /** Only return validations with this verdict (e.g. WRONG to review mis-categorized items). */
+  verdict?: InputMaybe<ZonosCategoryValidationVerdict>;
+};
 
 export type ZonosCbpExchangeRateEx = {
   __typename?: 'CbpExchangeRateEX';
@@ -1873,6 +3300,250 @@ export type ZonosCbpExchangeRateEx = {
 export type ZonosCbpExchangeRateExUpdateInput = {
   currency: ZonosCurrencyCode;
   rate: Scalars['Decimal'];
+};
+
+export type ZonosCbpExchangeRatesInput = {
+  day: Scalars['DateTime'];
+};
+
+/** Amount breakdown from the external channel for a ChannelOrder. */
+export type ZonosChannelAmountSubtotals = {
+  __typename?: 'ChannelAmountSubtotals';
+  discounts: Maybe<Scalars['Decimal']>;
+  shipping: Maybe<Scalars['Decimal']>;
+  subtotal: Maybe<Scalars['Decimal']>;
+  taxes: Maybe<Scalars['Decimal']>;
+  total: Maybe<Scalars['Decimal']>;
+};
+
+/** An order ingested from an external sales channel. */
+export type ZonosChannelOrder = {
+  __typename?: 'ChannelOrder';
+  amounts: Maybe<ZonosChannelAmountSubtotals>;
+  /** When the order was cancelled, if applicable. */
+  cancelledAt: Maybe<Scalars['DateTime']>;
+  /** The ChannelConnection that sourced this order. */
+  channelConnectionId: Scalars['ID'];
+  /** The merchant-facing order reference (e.g. Shopify order name #1001). */
+  channelOrderReference: Scalars['String'];
+  /** Transaction currency. */
+  currency: Maybe<ZonosCurrencyCode>;
+  customerIdentifier: Scalars['String'];
+  destination: Maybe<ZonosChannelParty>;
+  discountCodes: Maybe<Array<Maybe<Scalars['String']>>>;
+  /** When the order was created on the external platform. */
+  externalCreatedAt: Maybe<Scalars['DateTime']>;
+  /** The platform's internal order ID. */
+  externalOrderId: Scalars['String'];
+  /** When the order was last updated on the external platform. */
+  externalUpdatedAt: Maybe<Scalars['DateTime']>;
+  fulfillmentStatus: Scalars['String'];
+  /** The unique identifier for the order. */
+  id: Scalars['ID'];
+  /** Line items on this order. */
+  items: Array<ZonosChannelOrderItem>;
+  linkedOrder: Maybe<ZonosOrder>;
+  merchantNote: Maybe<Scalars['String']>;
+  /** When ChannelDgs first observed this order. */
+  observedAt: Scalars['DateTime'];
+  /** The organization this order belongs to. */
+  organizationId: Scalars['ID'];
+  paymentMethod: Scalars['String'];
+  paymentStatus: Scalars['String'];
+  payor: Maybe<ZonosChannelParty>;
+  /** Presentment currency (may differ from transaction currency). */
+  presentmentCurrency: Maybe<ZonosCurrencyCode>;
+  riskMessages: Maybe<Scalars['String']>;
+  riskRecommendation: Scalars['String'];
+  riskScore: Maybe<Scalars['Decimal']>;
+  shippingProvider: Scalars['String'];
+  sourceName: Scalars['String'];
+  tags: Maybe<Scalars['String']>;
+  /** Fulfillment tracking records for this order. */
+  tracking: Array<ZonosChannelOrderTracking>;
+};
+
+/** A breakdown of the order's monetary amounts. */
+export type ZonosChannelOrderAmountsCreateInput = {
+  /** Total discount amount applied to the order. */
+  discounts?: InputMaybe<Scalars['Decimal']>;
+  /** Shipping amount charged on the order. */
+  shipping?: InputMaybe<Scalars['Decimal']>;
+  /** Order subtotal, before tax, shipping, and discounts. */
+  subtotal?: InputMaybe<Scalars['Decimal']>;
+  /** Total tax amount charged on the order. */
+  taxes?: InputMaybe<Scalars['Decimal']>;
+  /** Total amount charged for the order. */
+  total: Scalars['Decimal'];
+};
+
+/** Input for creating an order, including its line items and any known fulfillment tracking, in a single call. */
+export type ZonosChannelOrderCreateInput = {
+  /** Money breakdown for the order, if available. */
+  amounts: ZonosChannelOrderAmountsCreateInput;
+  /** When the order was cancelled, if applicable. */
+  cancelledAt?: InputMaybe<Scalars['DateTime']>;
+  /** The channel connection this order belongs to, if known. */
+  channelConnectionId?: InputMaybe<Scalars['ID']>;
+  /** The merchant-facing order reference (e.g. Shopify order name #1001). */
+  channelOrderReference?: InputMaybe<Scalars['String']>;
+  /** Transaction currency. */
+  currency: ZonosCurrencyCode;
+  /** The customer's identifier on the external platform, if available. Used to recognize repeat customers. */
+  customerId?: InputMaybe<Scalars['String']>;
+  /** Ship-to address details, if available. */
+  destination?: InputMaybe<ZonosChannelOrderPartyCreateInput>;
+  /** Discount codes applied to the order, if any. */
+  discountCodes?: InputMaybe<Array<Scalars['String']>>;
+  /** When the order was created on the external platform. */
+  externalCreatedAt?: InputMaybe<Scalars['DateTime']>;
+  /** The order's unique identifier on the external platform. */
+  externalOrderId: Scalars['String'];
+  /** When the order was last updated on the external platform. */
+  externalUpdatedAt?: InputMaybe<Scalars['DateTime']>;
+  /** The order's fulfillment status. */
+  fulfillmentStatus?: InputMaybe<Scalars['String']>;
+  /** Line items on this order. */
+  items: Array<ZonosChannelOrderItemCreateInput>;
+  /** A private note about the order, not shown to the customer. */
+  merchantNote?: InputMaybe<Scalars['String']>;
+  /** The payment method used for the order. */
+  paymentMethod?: InputMaybe<Scalars['String']>;
+  /** The order's payment status. */
+  paymentStatus?: InputMaybe<Scalars['String']>;
+  /** Bill-to address details, if available. */
+  payor?: InputMaybe<ZonosChannelOrderPartyCreateInput>;
+  /** Presentment currency (may differ from transaction currency). */
+  presentmentCurrency?: InputMaybe<ZonosCurrencyCode>;
+  /** Additional detail about the order's risk assessment, if available. */
+  riskMessages?: InputMaybe<Scalars['String']>;
+  /** A recommendation on how to handle the order based on its risk assessment, if available. */
+  riskRecommendation?: InputMaybe<Scalars['String']>;
+  /** A risk score for the order, if available. */
+  riskScore?: InputMaybe<Scalars['Decimal']>;
+  /** The shipping provider selected for the order, if known. */
+  shippingProvider?: InputMaybe<Scalars['String']>;
+  /** Where the order originated (e.g. online store, point of sale, mobile app). */
+  sourceName?: InputMaybe<Scalars['String']>;
+  /** Tags associated with the order. */
+  tags?: InputMaybe<Scalars['String']>;
+  /** Fulfillment tracking records for this order, if already known at create time. */
+  tracking?: InputMaybe<Array<ZonosChannelOrderTrackingCreateInput>>;
+};
+
+/** A single line item within a ChannelOrder. */
+export type ZonosChannelOrderItem = {
+  __typename?: 'ChannelOrderItem';
+  /** Named attributes for this line item, such as variant options. */
+  attributes: Maybe<Array<ZonosChannelOrderItemAttribute>>;
+  /** The catalog item associated with this line item, if one has been matched. */
+  catalogItem: Maybe<ZonosCatalogItem>;
+  externalLineId: Scalars['String'];
+  id: Scalars['ID'];
+  lineCurrency: Maybe<ZonosCurrencyCode>;
+  lineDiscount: Maybe<Scalars['Decimal']>;
+  lineTax: Maybe<Scalars['Decimal']>;
+  productTitle: Scalars['String'];
+  quantity: Maybe<Scalars['Int']>;
+  unitPrice: Maybe<Scalars['Decimal']>;
+};
+
+/** A single named attribute on a line item (e.g. a variant option like size or color). */
+export type ZonosChannelOrderItemAttribute = {
+  __typename?: 'ChannelOrderItemAttribute';
+  /** The attribute's key (e.g. "Color", "Size"). */
+  key: Scalars['String'];
+  /** The attribute's value (e.g. "Red", "Medium"). */
+  value: Scalars['String'];
+};
+
+/** A single named attribute on a line item (e.g. a variant option like size or color). */
+export type ZonosChannelOrderItemAttributeInput = {
+  /** The attribute's key (e.g. "Color", "Size"). */
+  key: Scalars['String'];
+  /** The attribute's value (e.g. "Red", "Medium"). */
+  value: Scalars['String'];
+};
+
+/** A single line item on the order. */
+export type ZonosChannelOrderItemCreateInput = {
+  /** Named attributes for this line item, such as variant options. */
+  attributes?: InputMaybe<Array<ZonosChannelOrderItemAttributeInput>>;
+  /** The product's country of origin, if known. */
+  countryOfOrigin?: InputMaybe<ZonosCountryCode>;
+  /** The line item's unique identifier on the external platform. */
+  externalLineId: Scalars['String'];
+  /** The product's Harmonized System (HS) code, if known. */
+  hsCode?: InputMaybe<Scalars['String']>;
+  /** Currency for this line item's amounts. */
+  lineCurrency: ZonosCurrencyCode;
+  /** Discount amount applied to this line item. */
+  lineDiscount?: InputMaybe<Scalars['Decimal']>;
+  /** Tax amount applied to this line item. */
+  lineTax?: InputMaybe<Scalars['Decimal']>;
+  /** The product's unique identifier on the external platform, used to match this line item to a catalog item. */
+  productId?: InputMaybe<Scalars['String']>;
+  /** The product's name. */
+  productTitle: Scalars['String'];
+  /** Quantity ordered. */
+  quantity: Scalars['Int'];
+  /** The product's SKU, used to match this line item to a catalog item. */
+  sku?: InputMaybe<Scalars['String']>;
+  /** Price per unit. */
+  unitPrice: Scalars['Decimal'];
+};
+
+/** Address and company details for a party on the order. Street-level address is not included. */
+export type ZonosChannelOrderPartyCreateInput = {
+  /** City. */
+  city?: InputMaybe<Scalars['String']>;
+  /** Company name, if applicable. */
+  company?: InputMaybe<Scalars['String']>;
+  /** Country. */
+  countryCode?: InputMaybe<ZonosCountryCode>;
+  /** Postal code. */
+  postalCode?: InputMaybe<Scalars['String']>;
+  /** State or province. */
+  stateCode?: InputMaybe<Scalars['String']>;
+};
+
+/** A fulfillment tracking record for a ChannelOrder. */
+export type ZonosChannelOrderTracking = {
+  __typename?: 'ChannelOrderTracking';
+  carrier: Maybe<Scalars['String']>;
+  externalFulfillmentId: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  shippedAt: Maybe<Scalars['DateTime']>;
+  trackingNumber: Scalars['String'];
+};
+
+/** A single fulfillment tracking record for the order. */
+export type ZonosChannelOrderTrackingCreateInput = {
+  /** The shipping carrier. */
+  carrier?: InputMaybe<Scalars['String']>;
+  /** The fulfillment's unique identifier on the external platform, if available. */
+  externalFulfillmentId?: InputMaybe<Scalars['String']>;
+  /** When the order shipped. */
+  shippedAt?: InputMaybe<Scalars['DateTime']>;
+  /** The tracking number. */
+  trackingNumber: Scalars['String'];
+};
+
+export type ZonosChannelOrderUpdateInput = {
+  id: Scalars['ID'];
+  linkedOrderId?: InputMaybe<Scalars['ID']>;
+  /** Fulfillment tracking records to add to this order, if any. */
+  tracking?: InputMaybe<Array<ZonosChannelOrderTrackingCreateInput>>;
+};
+
+/** Address and company details for a party on a ChannelOrder. */
+export type ZonosChannelParty = {
+  __typename?: 'ChannelParty';
+  city: Scalars['String'];
+  company: Scalars['String'];
+  countryCode: Maybe<ZonosCountryCode>;
+  postalCode: Scalars['String'];
+  stateCode: Scalars['String'];
 };
 
 export type ZonosCheckoutCustomerLocation = {
@@ -1922,6 +3593,8 @@ export type ZonosCheckoutCustomerProfile = {
   phone: Maybe<Scalars['String']>;
   /** The customer's available store credit balance in the checkout session's currency. Returns null if accessed outside of a checkout session context or if no store credit exists. */
   storeCreditBalance: Maybe<Scalars['Decimal']>;
+  /** The customer's tax exemptions, by jurisdiction */
+  taxExemptions: Maybe<Array<ZonosCheckoutCustomerTaxExemption>>;
 };
 
 export type ZonosCheckoutCustomerProfileAuthenticateInput = {
@@ -1937,9 +3610,97 @@ export type ZonosCheckoutCustomerProfileAuthenticateInput = {
   phone?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosCheckoutCustomerProfileInput = {
+  /** The merchant's customer ID */
+  customerId: Scalars['String'];
+  /** The email of the customer */
+  email?: InputMaybe<Scalars['String']>;
+  /** The shipping addresses the customer has */
+  locations?: InputMaybe<Array<ZonosCheckoutCustomerLocationInput>>;
+  /** The name of the customer */
+  name?: InputMaybe<Scalars['String']>;
+  /** The phone of the customer */
+  phone?: InputMaybe<Scalars['String']>;
+};
+
+/** A customer's tax exemption in a single jurisdiction. Whether it currently applies is determined by its date window alone; a jurisdiction with no exemption has no record. */
+export type ZonosCheckoutCustomerTaxExemption = {
+  __typename?: 'CheckoutCustomerTaxExemption';
+  /** The state or province the exemption applies to */
+  administrativeArea: Scalars['String'];
+  /** The country the exemption applies to */
+  countryCode: ZonosCountryCode;
+  /** When this exemption was first recorded */
+  createdAt: Scalars['DateTime'];
+  /** The date the exemption takes effect */
+  effectiveAt: Scalars['DateTime'];
+  /** The reason the customer is exempt */
+  exemptionReason: ZonosCheckoutTaxExemptionReason;
+  /** The date the exemption expires. Null if it does not expire */
+  expiresAt: Maybe<Scalars['DateTime']>;
+  /** A unique identifier for the exemption */
+  id: Scalars['ID'];
+  /** When this exemption was last changed */
+  updatedAt: Scalars['DateTime'];
+};
+
+export type ZonosCheckoutCustomerTaxExemptionInput = {
+  /** The state or province the exemption applies to */
+  administrativeArea: Scalars['String'];
+  /** The country the exemption applies to */
+  countryCode: ZonosCountryCode;
+  /** The date the exemption takes effect */
+  effectiveAt: Scalars['DateTime'];
+  /** The reason the customer is exempt. Defaults to UNSPECIFIED */
+  exemptionReason?: InputMaybe<ZonosCheckoutTaxExemptionReason>;
+  /** The number on the customer's exemption documentation. Stored verbatim */
+  exemptionReference?: InputMaybe<Scalars['String']>;
+  /** The date the exemption expires. Null if it does not expire */
+  expiresAt?: InputMaybe<Scalars['DateTime']>;
+};
+
+/** A supplied exemption that was not accepted, and why. */
+export type ZonosCheckoutCustomerTaxExemptionRejection = {
+  __typename?: 'CheckoutCustomerTaxExemptionRejection';
+  /** The administrative area of the rejected record, when it was supplied */
+  administrativeArea: Maybe<Scalars['String']>;
+  /** Why the record was rejected */
+  code: ZonosCheckoutTaxExemptionRejectionCode;
+  /** The country of the rejected record, when it was supplied */
+  countryCode: Maybe<ZonosCountryCode>;
+  /** The effective date of the rejected record, when it was supplied */
+  effectiveAt: Maybe<Scalars['DateTime']>;
+  /** A human readable explanation of the rejection */
+  message: Scalars['String'];
+};
+
+export type ZonosCheckoutCustomerTaxExemptionSyncInput = {
+  /** The merchant's customer ID */
+  customerId: Scalars['String'];
+  /** The complete set of exemptions for this customer. Authoritative: an existing exemption absent from this list is removed, which is how a revoked one stops being honored. Jurisdictions whose supplied record was rejected are left untouched. Send only jurisdictions the customer is exempt in; every record here is stored as an exemption. */
+  taxExemptions: Array<ZonosCheckoutCustomerTaxExemptionInput>;
+};
+
+/** The outcome of syncing one customer's tax exemptions. */
+export type ZonosCheckoutCustomerTaxExemptionSyncResult = {
+  __typename?: 'CheckoutCustomerTaxExemptionSyncResult';
+  /** The exemptions now on record for this customer */
+  accepted: Array<ZonosCheckoutCustomerTaxExemption>;
+  /** The merchant's customer ID */
+  customerId: Scalars['String'];
+  /** Records that were not accepted */
+  rejected: Array<ZonosCheckoutCustomerTaxExemptionRejection>;
+};
+
 export type ZonosCheckoutMerchantOfRecordType =
   | 'MERCHANT'
   | 'ZONOS';
+
+/** The payment processor used to collect payment for a `CheckoutSession`. */
+export type ZonosCheckoutPaymentProcessorType =
+  | 'AIRWALLEX'
+  | 'PAYPAL'
+  | 'STRIPE';
 
 export type ZonosCheckoutPaypalOrderIntent =
   | 'AUTHORIZE'
@@ -1966,6 +3727,42 @@ export type ZonosCheckoutSessionPartyReferenceType =
   | 'DESTINATION'
   /** Represents the payor party. */
   | 'PAYOR';
+
+/** The reason a customer is exempt. Entity-based reasons exempt the buyer regardless of what they purchase. Use-based reasons cover only qualifying goods, so exempting a whole order on a use-based reason is an audit exposure. Certificates vary by jurisdiction in both wording and which reasons they recognize, so these values are a normalization target rather than a copy of any one certificate. A reason with no value here — foreign diplomat, agricultural production, industrial production, direct mail — should be sent as OTHER. */
+export type ZonosCheckoutTaxExemptionReason =
+  /** Entity-based. State exemption is separate from federal 501(c)(3) status. */
+  | 'CHARITABLE'
+  /** The buyer holds a direct pay permit and self-assesses tax with the state. */
+  | 'DIRECT_PAY'
+  /** Entity-based. A school or university. */
+  | 'EDUCATIONAL_ORGANIZATION'
+  /** Entity-based. A US federal agency or department. */
+  | 'FEDERAL_GOVERNMENT'
+  /** A reason the certificate explains in free text. */
+  | 'OTHER'
+  /** Entity-based. A church or other religious organization. */
+  | 'RELIGIOUS_ORGANIZATION'
+  /** Use-based. Goods purchased to resell rather than consume. */
+  | 'RESALE'
+  /** Entity-based. A state agency, county, municipality, or school district. */
+  | 'STATE_LOCAL_GOVERNMENT'
+  /** Entity-based. A federally recognized tribe or tribal member. */
+  | 'TRIBAL_GOVERNMENT'
+  /** No reason supplied. Only whole-order exemption is possible. */
+  | 'UNSPECIFIED';
+
+/** Why a synced tax exemption was not accepted. */
+export type ZonosCheckoutTaxExemptionRejectionCode =
+  /** More than one record for the same jurisdiction and effective date. */
+  | 'DUPLICATE_JURISDICTION'
+  /** The expiration is not after the effective date. */
+  | 'INVALID_DATE_RANGE'
+  /** No exemption reference was supplied. */
+  | 'MISSING_EXEMPTION_REFERENCE'
+  /** No customer matches the supplied customer ID. */
+  | 'UNKNOWN_CUSTOMER'
+  /** The administrative area is not recognized for the given country. */
+  | 'UNKNOWN_JURISDICTION';
 
 export type ZonosClassification = {
   __typename?: 'Classification';
@@ -2001,6 +3798,8 @@ export type ZonosClassification = {
   id: Scalars['ID'];
   /** The location of an image related to an item. */
   imageUrl: Maybe<Scalars['String']>;
+  /** The language of the item text provided on input. */
+  languageCode: Maybe<ZonosLanguageCode>;
   /** The manual classification associated with the classification. */
   manualClassification: Maybe<ZonosManualClassification>;
   /** The material composition of an item for classification. */
@@ -2019,6 +3818,8 @@ export type ZonosClassification = {
   productUrlScrapedData: Maybe<ZonosProductUrlScrapedData>;
   /** The country goods are shipping from, for export code classification. */
   shipFromCountry: Maybe<ZonosCountryCode>;
+  /** Example item texts from the classification corpus that are semantically closest to this item within its 6-digit subheading, nearest first. Only populated when requested. For items answered by nearest-example retrieval these are the matches that determined the code; otherwise they illustrate what else the assigned subheading covers. */
+  similarItems: Maybe<Array<Scalars['String']>>;
   /** When this `Classification` was most recently updated. */
   updatedAt: Scalars['DateTime'];
   /** The user who most recently updated the Classification. */
@@ -2029,6 +3830,8 @@ export type ZonosClassificationAlternate = {
   __typename?: 'ClassificationAlternate';
   /** The probability mass associated with this subheading */
   probabilityMass: Scalars['Decimal'];
+  /** Example item texts from the classification corpus closest to this item within this alternate's 6-digit subheading, nearest first — what choosing this alternate would mean. Only populated when requested. */
+  similarItems: Maybe<Array<Scalars['String']>>;
   /** The alternate subheading */
   subheadingAlternate: ZonosHsCode;
   /** The list of tariff alternates within that particular subheading */
@@ -2194,6 +3997,8 @@ export type ZonosClassificationCalculateInput = {
   imageUrl?: InputMaybe<Scalars['String']>;
   /** The items physical age */
   itemAge?: InputMaybe<Scalars['String']>;
+  /** The language of the item text. Used to translate non-English text to English before classification. */
+  languageCode?: InputMaybe<ZonosLanguageCode>;
   /** The material composition of an item for classification. */
   material?: InputMaybe<Scalars['String']>;
   /** The product name or short description. */
@@ -2305,12 +4110,6 @@ export type ZonosClassificationFilter = {
   source?: InputMaybe<ZonosClassificationCalculateOrigin>;
 };
 
-export type ZonosClassificationJobLink = {
-  __typename?: 'ClassificationJobLink';
-  bulkJob: ZonosClassificationBulkJob;
-  classification: ZonosClassification;
-};
-
 /** this is the user-facing enum that is both input and returned */
 export type ZonosClassificationLevel =
   /** Prioritize quality over speed */
@@ -2409,6 +4208,13 @@ export type ZonosClassifySupportedData = {
   __typename?: 'ClassifySupportedData';
   /** A list of countries supported by Classify. */
   countries: Array<ZonosCountryCode>;
+};
+
+/** A (value, label) option pair in the up-front dependent-options table. */
+export type ZonosCodeOption = {
+  __typename?: 'CodeOption';
+  label: Scalars['String'];
+  value: Scalars['String'];
 };
 
 /** Enum value describing the type of CollectInvoiceFee */
@@ -2889,6 +4695,347 @@ export type ZonosCollectUploadStatus =
   | 'SUCCEEDED'
   | 'SUCCEEDED_WITH_ERRORS';
 
+export type ZonosCommercialInvoiceItemMeasurementType =
+  | 'ALCOHOL_BY_VOLUME'
+  | 'HEIGHT'
+  | 'LENGTH'
+  /** A line item's total weight across all units. Accepted at the API boundary only and converted to a per-unit `WEIGHT` measurement; never persisted. */
+  | 'TOTAL_WEIGHT'
+  | 'VOLUME'
+  | 'WEIGHT'
+  | 'WIDTH';
+
+export type ZonosCommercialInvoiceItemUnitOfMeasure =
+  | 'CENTIMETER'
+  | 'FOOT'
+  | 'GRAM'
+  | 'INCH'
+  | 'KILOGRAM'
+  | 'LITER'
+  | 'METER'
+  | 'MILLILITER'
+  | 'MILLIMETER'
+  | 'OUNCE'
+  | 'PERCENTAGE'
+  | 'POUND'
+  | 'YARD';
+
+export type ZonosComplianceCampaign = {
+  __typename?: 'ComplianceCampaign';
+  affectedCount: Scalars['Int'];
+  enforcementAt: Maybe<Scalars['DateTime']>;
+  id: Scalars['ID'];
+  programId: Scalars['ID'];
+  questionnaireVersionId: Scalars['ID'];
+  remainingCount: Scalars['Int'];
+  resolvedCount: Scalars['Int'];
+  status: Scalars['String'];
+};
+
+export type ZonosComplianceCampaignConnection = {
+  __typename?: 'ComplianceCampaignConnection';
+  edges: Array<ZonosComplianceCampaignEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosComplianceCampaignEdge = {
+  __typename?: 'ComplianceCampaignEdge';
+  cursor: Scalars['String'];
+  node: ZonosComplianceCampaign;
+};
+
+export type ZonosComplianceObligation = {
+  __typename?: 'ComplianceObligation';
+  blocking: Scalars['Boolean'];
+  catalogItemId: Scalars['ID'];
+  /** Similar catalog items that still need this program answered for the same route — places to copy this obligation's answers to. Empty unless this obligation is fully answered. */
+  copyTargets: ZonosComplianceObligationCopyTargetConnection;
+  enforcementAt: Maybe<Scalars['DateTime']>;
+  id: Scalars['ID'];
+  program: ZonosComplianceProgram;
+  programId: Scalars['ID'];
+  reason: Maybe<ZonosComplianceObligationReason>;
+  requiredBreakingVersion: Scalars['Int'];
+  satisfiedResponseId: Maybe<Scalars['ID']>;
+  shipFromCountry: Maybe<ZonosCountryCode>;
+  shipToCountry: Maybe<ZonosCountryCode>;
+  status: ZonosComplianceObligationStatus;
+};
+
+
+export type ZonosComplianceObligationCopyTargetsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+export type ZonosComplianceObligationConnection = {
+  __typename?: 'ComplianceObligationConnection';
+  edges: Array<ZonosComplianceObligationEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+/** A similar catalog item that still needs this program answered — a place to copy answers to. */
+export type ZonosComplianceObligationCopyTarget = {
+  __typename?: 'ComplianceObligationCopyTarget';
+  targetCatalogItem: ZonosCatalogItem;
+  targetObligation: ZonosComplianceObligation;
+};
+
+export type ZonosComplianceObligationCopyTargetConnection = {
+  __typename?: 'ComplianceObligationCopyTargetConnection';
+  edges: Array<ZonosComplianceObligationCopyTargetEdge>;
+  pageInfo: ZonosPageInfo;
+};
+
+export type ZonosComplianceObligationCopyTargetEdge = {
+  __typename?: 'ComplianceObligationCopyTargetEdge';
+  cursor: Scalars['String'];
+  node: ZonosComplianceObligationCopyTarget;
+};
+
+export type ZonosComplianceObligationEdge = {
+  __typename?: 'ComplianceObligationEdge';
+  cursor: Scalars['String'];
+  node: ZonosComplianceObligation;
+};
+
+export type ZonosComplianceObligationFilter = {
+  blocking?: InputMaybe<Scalars['Boolean']>;
+  catalogItemId?: InputMaybe<Scalars['ID']>;
+  programIds?: InputMaybe<Array<Scalars['ID']>>;
+  /** Keeps only obligations whose program's ACTIVE questionnaire asks something at these levels; null/empty = every obligation. Pass the same set the client renders, so an obligation it would open no line for stops being counted as outstanding. It is the version-static level set that decides whether `complianceQuestionnaireInfer` opens a line, so the two always agree. */
+  requirements?: InputMaybe<Array<ZonosQuestionRequirement>>;
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+  statuses?: InputMaybe<Array<ZonosComplianceObligationStatus>>;
+};
+
+export type ZonosComplianceObligationReason =
+  | 'CONTENT_CHANGED'
+  | 'EXPIRED'
+  | 'NEWLY_APPLICABLE'
+  | 'VERSION_RELEASE';
+
+export type ZonosComplianceObligationRemediationFailure = {
+  __typename?: 'ComplianceObligationRemediationFailure';
+  message: Scalars['String'];
+  obligationId: Scalars['ID'];
+};
+
+export type ZonosComplianceObligationRemediationResult = {
+  __typename?: 'ComplianceObligationRemediationResult';
+  failures: Array<ZonosComplianceObligationRemediationFailure>;
+  sessions: Array<ZonosQuestionnaireSession>;
+};
+
+export type ZonosComplianceObligationStatus =
+  | 'CURRENT'
+  | 'IN_PROGRESS'
+  | 'NEEDS_REVIEW'
+  | 'UNANSWERED';
+
+export type ZonosComplianceObligationsCopyAnswersInput = {
+  obligationIds: Array<Scalars['ID']>;
+  /** The catalog item whose completed response is copied onto each target obligation. */
+  sourceCatalogItemId: Scalars['ID'];
+};
+
+export type ZonosComplianceObligationsRemediateInput = {
+  obligationIds: Array<Scalars['ID']>;
+};
+
+/** The ComplianceProgram graph and its questionnaire subtree are reachable from the customer-graph complianceRequirements query, so they are accessible. The admin authoring queries/mutations and the dependent-options projection types stay @inaccessible. */
+export type ZonosComplianceProgram = {
+  __typename?: 'ComplianceProgram';
+  /** Issuing authority, e.g. 'US_FDA'. Null for programs without one. */
+  authority: Maybe<Scalars['String']>;
+  /** Stable program code, e.g. 'FDA_FD2'. */
+  code: Scalars['String'];
+  /** Latest ACTIVE version of this program's questionnaire, if any. */
+  currentVersion: Maybe<ZonosQuestionnaireVersion>;
+  description: Maybe<Scalars['String']>;
+  /** HS-code triggers (compliance requirements) for this program. */
+  hsCodeTriggers: ZonosComplianceRequirementConnection;
+  /** Stable external id, prefixed `compliance_program_`. */
+  id: Scalars['ID'];
+  /** Country jurisdiction when scoped to one; null for multilateral. */
+  jurisdiction: Maybe<Scalars['String']>;
+  name: Scalars['String'];
+  programType: ZonosComplianceProgramType;
+  status: ZonosProgramStatus;
+  strictness: ZonosProgramStrictness;
+  /** All non-archived versions of this program's questionnaire (newest first). */
+  versions: Array<ZonosQuestionnaireVersion>;
+};
+
+
+/** The ComplianceProgram graph and its questionnaire subtree are reachable from the customer-graph complianceRequirements query, so they are accessible. The admin authoring queries/mutations and the dependent-options projection types stay @inaccessible. */
+export type ZonosComplianceProgramHsCodeTriggersArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosProgramHsCodeTriggerFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+export type ZonosComplianceProgramType =
+  | 'FTA'
+  | 'OTHER'
+  | 'PGA'
+  | 'TARIFF_MEASURE';
+
+export type ZonosComplianceQuestionnaireAmendInput = {
+  /** Lines of the source session to amend — use this to change one program's answers and leave the rest alone. Null/empty clones every line of that session that has something to amend. */
+  lineIds?: InputMaybe<Array<Scalars['ID']>>;
+  /** External id of the completed session whose answers are being amended. */
+  sessionId: Scalars['ID'];
+};
+
+/** ── complianceQuestionnaireInfer ────────────────────────────────────────────────────────────── Provider-agnostic noun-then-verb naming; drops the 'prefill' verb. Behavior is identical to the */
+export type ZonosComplianceQuestionnaireInferInput = {
+  containerId: Scalars['ID'];
+  /** Grouping container the flow is scoped to. */
+  containerType: ZonosContainerType;
+  /** Items to evaluate. Applicable programs are resolved per item (HS-driven); one session line per (item, program). Omit it for a CATALOG_ITEM container and the single item is hydrated from the facts snapshotted for `containerId` — every other container type must supply it, having no snapshot to read. */
+  items?: InputMaybe<Array<ZonosQuestionnaireInferItemInput>>;
+  /** Language to render question/answer/option text in; falls back to Accept-Language, then English. */
+  languageCode?: InputMaybe<ZonosLanguageCode>;
+  /** The manufacturer that made these items — an id from `manufacturers`. Naming one pre-answers the FDA manufacturer block for the filer to confirm; unlike `partyId` the answers store the values rather than a reference, because the ACE entity records file the text itself. Omit it and the block is asked. */
+  manufacturerId?: InputMaybe<Scalars['ID']>;
+  /** The party certifying this session's attestations — a PartyDgs id, verified before it is used. Where an attestation names a certifier (EPA TS1, and the FTA origin block), the party question is pre-answered with this id for the filer to confirm, and the certifier's name, phone and email are never copied here: they stay in PartyDgs and the filing resolves them from the id. Omit it (or pass one this caller cannot see) and the attestation cannot be completed — there is deliberately no name/phone/email question to fall back to, so a certifier with no party record is created in PartyDgs first and that PII stays in the one system that owns it. */
+  partyId?: InputMaybe<Scalars['ID']>;
+  /** Program types to open questionnaire lines for. Null/empty = every type the flow surfaces (PGA + FTA + TARIFF_MEASURE); pass `[PGA]` to drop trade-agreement paperwork. Narrows within the surfaced set, so a type not yet surfaced (OTHER) stays excluded even when named. Independent of regulationsApply's `agencies`: that picks WHICH PGA, this picks WHICH KIND of paperwork. */
+  programTypes?: InputMaybe<Array<ZonosComplianceProgramType>>;
+  /** Optional pre-run inference result. When absent, regulationsApply runs inline (FDA) for the items. */
+  regulationResultId?: InputMaybe<Scalars['ID']>;
+  /** Requirement levels worth opening a line for. Null/empty = every level; `[REQUIRED]` skips a questionnaire that asks nothing blocking. This decides whether a line opens, not what it carries — to render only those levels, pass the same set to `QuestionnaireSessionLine.questions`. */
+  requirements?: InputMaybe<Array<ZonosQuestionRequirement>>;
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  /** Destination the questionnaire is scoped to. Required whenever `items` is supplied. On the snapshot-hydrated path it may be omitted, and defaults to the route the open session is already being answered under, then to the organization's single active requirement route. */
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+export type ZonosComplianceQuestionnaireInferResult = {
+  __typename?: 'ComplianceQuestionnaireInferResult';
+  /** Per (item, program): programs skipped for that item because a current COMPLETE response already satisfies them. */
+  alreadySatisfied: Array<ZonosQuestionnaireInferSatisfiedProgram>;
+  /** One summary per line this call opened. From complianceQuestionnaireAmend, the lines it cloned. */
+  lines: Array<ZonosQuestionnaireInferLineSummary>;
+  /** Null when nothing was outstanding AND no session is left open; a run scoped to a subset of agencies still returns the session when another agency's lines are open. */
+  session: Maybe<ZonosQuestionnaireSession>;
+};
+
+/** Regulatory requirement applicable to an item based on HS code and ship-to country; the HS-code trigger for its parent ComplianceProgram. */
+export type ZonosComplianceRequirement = {
+  __typename?: 'ComplianceRequirement';
+  /** Rule expression narrowing when this triggers, beyond the HS + ship-to + origin columns — the same language as RuleDgs rules, over hs_code, country_of_origin, ship_from_country and ship_to_country. Null = no extra narrowing. */
+  condition: Maybe<Scalars['String']>;
+  /** HS prefix this triggers on, or `*` for every HS code. */
+  hsCode: Scalars['String'];
+  /** Stable external id, prefixed compliance_requirement_. */
+  id: Scalars['ID'];
+  /** The program this requirement triggers (resolved via the programByRequirement dataloader). */
+  program: ZonosComplianceProgram;
+  /** Null = applies regardless of origin; set = only goods originating there (how an FTA is triggered). */
+  shipFromCountry: Maybe<ZonosCountryCode>;
+  shipToCountry: ZonosCountryCode;
+};
+
+export type ZonosComplianceRequirementConnection = {
+  __typename?: 'ComplianceRequirementConnection';
+  edges: Array<ZonosComplianceRequirementEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosComplianceRequirementEdge = {
+  __typename?: 'ComplianceRequirementEdge';
+  cursor: Scalars['String'];
+  node: ZonosComplianceRequirement;
+};
+
+export type ZonosComplianceRequirementFilter = {
+  /** Exact HS code match, plus every requirement stored at `*` (no HS scope at all — how a trade agreement is triggered), since those apply to this code too. Mutually exclusive with hsCodePrefix. */
+  hsCode?: InputMaybe<Scalars['String']>;
+  /** Prefix match on HS code (digits/dots only, max 12 chars), plus every requirement stored at `*`. Note the prefix matches DOWNWARD — `01` finds rows stored beneath chapter 01, but a 10-digit value does not find a row stored at the 4-digit heading above it. Mutually exclusive with hsCode. */
+  hsCodePrefix?: InputMaybe<Scalars['String']>;
+  /** Exact-or-ancestor match for a list of HS codes (max 200, digits/dots only). Each code is expanded to its chapter, heading, subheading, 8-digit and full forms, so a row stored at any level above the code matches, plus every requirement stored at `*`. Mutually exclusive with hsCode and hsCodePrefix. */
+  hsCodes?: InputMaybe<Array<Scalars['String']>>;
+  /** Match requirements whose program is any of these types. Empty list = no filter. */
+  programTypes?: InputMaybe<Array<ZonosComplianceProgramType>>;
+  /** Ship-from country. Rows with NULL shipFromCountry (applies regardless of origin) also match. */
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+export type ZonosComplianceTranslationEntityType =
+  | 'ANSWER_OPTION'
+  /** A Java classifier-catalog option label (FDA intended-use, processing-code, FWS, etc.); entityId is "<optionsSource>:<value>". */
+  | 'CATALOG'
+  | 'COMPLIANCE_PROGRAM'
+  | 'QUESTION';
+
+export type ZonosComplianceTranslationJobStatus =
+  /** All translations generated. */
+  | 'COMPLETED'
+  /** The last attempt failed (see error); Kafka retries, then it stays failed for review. */
+  | 'FAILED'
+  /** A worker is generating translations. */
+  | 'IN_PROGRESS'
+  /** Enqueued, not yet picked up. */
+  | 'PENDING';
+
+/** Unit of measure for an item dimension. Values mirror the ItemDgs ItemUnitOfMeasure enum, but this is a distinct compliance-scoped type rather than a shared federation value type. On a prefill input only the weight units (GRAM, KILOGRAM, OUNCE, POUND) are meaningful; a supplied weight in any of them is converted to kilograms before prefilling. */
+export type ZonosComplianceUnitOfMeasure =
+  | 'CENTIMETER'
+  | 'FOOT'
+  | 'GRAM'
+  | 'INCH'
+  | 'KILOGRAM'
+  | 'LITER'
+  | 'METER'
+  | 'MILLILITER'
+  | 'MILLIMETER'
+  | 'OUNCE'
+  | 'PERCENTAGE'
+  | 'POUND'
+  | 'YARD';
+
+/** Which material or composition property a document proves. Required when `documentType` is one of the material or composition `*_CERTIFICATE` values. */
+export type ZonosCompositionAttributeKey =
+  /** The country where the metal was cast. */
+  | 'COUNTRY_OF_CAST'
+  /** The country where the metal was melted and poured. */
+  | 'COUNTRY_OF_MELT_AND_POUR'
+  /** The country the material came from. This is different from `CERTIFICATE_OF_ORIGIN`, which claims preferential treatment under a trade agreement. */
+  | 'COUNTRY_OF_ORIGIN'
+  /** The country where the steel was poured, for Section 232 steel tariffs. */
+  | 'COUNTRY_OF_POUR'
+  /** The country where the aluminum was smelted, for Section 232 aluminum tariffs. */
+  | 'COUNTRY_OF_SMELT'
+  /** Any other material or composition property, such as fabric content or an alloy specification. */
+  | 'MATERIAL_ORIGIN';
+
+export type ZonosConditionOperator =
+  /** True when the referenced question has any non-null answer. */
+  | 'ANSWERED'
+  /** BOOLEAN / SINGLE_SELECT / TEXT exact match against values[0]. */
+  | 'EQUALS'
+  /** MULTI_SELECT / SINGLE_SELECT / TEXT: prior answer (scalars as singletons) contains none of values. */
+  | 'EXCLUDES'
+  /** MULTI_SELECT: prior answer contains every entry in values. */
+  | 'INCLUDES_ALL'
+  /** MULTI_SELECT / SINGLE_SELECT / TEXT: prior answer (scalars as singletons) contains at least one entry from values. */
+  | 'INCLUDES_ANY'
+  /** True when the referenced question has no answer yet. */
+  | 'NOT_ANSWERED'
+  /** Inverse of EQUALS. */
+  | 'NOT_EQUALS';
+
 export type ZonosConfidenceScoreDisplayStatus =
   | 'DISABLED'
   | 'ENABLED';
@@ -2904,9 +5051,14 @@ export type ZonosConsignment = {
   __typename?: 'Consignment';
   /** CBP assessed landed cost (duty, tax, fees). Resolved via federation. */
   assessedLandedCost: Maybe<ZonosLandedCost>;
-  /** The consolidation this consignment belongs to. */
-  consolidation: Maybe<ZonosConsolidation>;
+  /** Link to the compliance questionnaire that needs no emailed code, for a postal operator to hand its own shipper. Requires postal access: the link is a bearer credential, so reading a consignment is deliberately not enough to mint one. */
+  complianceClarifyUrl: Maybe<Scalars['String']>;
+  /** Consignee display name, captured from the DESTINATION party when the consignment was created. Null on older consignments — read the parties for those. The party record remains authoritative. */
+  consigneeName: Maybe<Scalars['String']>;
+  consignmentItems: Array<ZonosConsignmentItem>;
+  consignmentParties: Array<ZonosConsignmentParty>;
   createdAt: Scalars['DateTime'];
+  /** Identifier of the user or service that created the record. */
   createdBy: Scalars['ID'];
   /** Currency of declared value. */
   currencyCode: ZonosCurrencyCode;
@@ -2923,9 +5075,13 @@ export type ZonosConsignment = {
   landedCost: Maybe<ZonosLandedCost>;
   /** Nature of the import transaction. */
   natureOfTransaction: Maybe<ZonosBrokerageNatureOfTransaction>;
+  /** Order associated with this consignment. */
+  order: Maybe<ZonosOrder>;
+  /** Organization that owns this consignment. */
+  organizationId: Scalars['ID'];
   /** Parties on this consignment. Resolved via federation. */
   parties: Array<ZonosParty>;
-  /** Partner Government Agency requirements applicable to this consignment. Derived from item HTS codes and ship-to country at create time. REQUIRED entries always trigger a filing data gather; CONDITIONAL entries are routed through RestrictedItemDgs to resolve maybe→yes/no. Nullable during the deprecation window for requiredPgaAgencies; will be tightened to non-null in a follow-up cleanup. */
+  /** Partner Government Agency requirements applicable to this consignment, derived from item HTS codes and ship-to country at creation. REQUIRED entries always trigger a filing data gather; CONDITIONAL entries are resolved before filing. */
   pgaAgencies: Maybe<Array<ZonosConsignmentPgaAgency>>;
   /** External identifier used for de-duping. */
   referenceNumber: Maybe<Scalars['String']>;
@@ -2943,6 +5099,7 @@ export type ZonosConsignment = {
   /** Package tracking number. Not renamed to houseBillOfLading because for Type 11 postal/express entries this is a parcel tracking number, not a bill of lading. */
   trackingNumber: Scalars['String'];
   updatedAt: Scalars['DateTime'];
+  /** Identifier of the user or service that last updated the record. */
   updatedBy: Scalars['ID'];
 };
 
@@ -2954,16 +5111,24 @@ export type ZonosConsignmentConnection = {
 };
 
 export type ZonosConsignmentCreateWorkflowInput = {
+  /** Customs-bond type code (0 = none, 8 = continuous, 9 = single-transaction). Batch uploads set this from the CSV; sourced spreadsheet-first onto the formal-entry bond, with the customer config as fallback. */
+  bondType?: InputMaybe<Scalars['String']>;
   /** Existing consolidation to assign to. Null if transport context is not yet known. */
   consolidationId?: InputMaybe<Scalars['ID']>;
   /** Currency of declared value. */
   currencyCode: ZonosCurrencyCode;
   /** Declared commercial value. */
   declaredValue: Scalars['Decimal'];
+  /** CBP entry type. Defaults to Type 13 postal entry. */
+  entryType?: InputMaybe<ZonosBrokerageEntryType>;
   /** Last country the goods were exported from. May differ from shipFromCountry (e.g., goods made in CN, exported from AU). */
   exportingCountry: ZonosCountryCode;
+  /** Force notifications requested by this create workflow. Currently this forces the compliance questionnaire notification when a session opens. Additional notification types can use this switch in the future. TEST mode sends only when this value is true. This does not enable scheduled reminders. */
+  forceNotifications: Scalars['Boolean'];
   /** Physical packages in the consignment. Optional — handling units can also be added later. */
   handlingUnits?: InputMaybe<Array<ZonosHandlingUnitInput>>;
+  /** Importer-of-record number for this consignment. Batch uploads set this from the CSV; this gives the non-batch workflow path the same field (null on legacy/non-batch flows that don't supply one). */
+  iorNumber?: InputMaybe<Scalars['String']>;
   /** Nature of the import transaction. */
   natureOfTransaction: ZonosBrokerageNatureOfTransaction;
   /** Postal operator code (e.g., 'J1CAEA'). */
@@ -2972,10 +5137,12 @@ export type ZonosConsignmentCreateWorkflowInput = {
   referenceNumber?: InputMaybe<Scalars['String']>;
   /** Ship-from country (country of origin). */
   shipFromCountry: ZonosCountryCode;
-  /** Shipper account code. Used to resolve the owning organization via partner lookup or shipper_organization mapping. */
+  /** Shipper account code. */
   shipperAccountId?: InputMaybe<Scalars['String']>;
   /** Initial lifecycle status. Defaults to CANDIDATE. Pass DRAFT to keep this consignment out of the filing pipeline. */
   status?: InputMaybe<ZonosConsignmentStatus>;
+  /** Customs-bond surety company code. Batch uploads set this from the CSV; sourced spreadsheet-first onto the formal-entry bond, with the customer config as fallback. */
+  suretyCode?: InputMaybe<Scalars['String']>;
   /** Primary tracking number for the consignment. */
   trackingNumber: Scalars['String'];
 };
@@ -2988,6 +5155,8 @@ export type ZonosConsignmentEdge = {
 
 /** Filters for querying consignments. All fields are optional and combined with AND. */
 export type ZonosConsignmentFilter = {
+  /** True for consignments whose questionnaire is still unanswered — the shipper's outstanding work. Archived and cancelled consignments are never pending. False for the rest. Omit to include both. */
+  compliancePending?: InputMaybe<Scalars['Boolean']>;
   /** Only return consignments assigned to this consolidation. */
   consolidationId?: InputMaybe<Scalars['ID']>;
   /** Only return consignments whose createdAt falls within this range. */
@@ -3000,6 +5169,79 @@ export type ZonosConsignmentFilter = {
   trackingNumber?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosConsignmentItem = {
+  __typename?: 'ConsignmentItem';
+  amount: Maybe<Scalars['Decimal']>;
+  complianceAttributes: Maybe<Scalars['JSON']>;
+  complianceRequirements: Maybe<Scalars['JSON']>;
+  countryOfOrigin: Maybe<ZonosCountryCode>;
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  currencyCode: Maybe<ZonosCurrencyCode>;
+  description: Maybe<Scalars['String']>;
+  hsCode: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  manufacturerParty: Maybe<ZonosConsignmentParty>;
+  measurements: Array<ZonosConsignmentItemMeasurement>;
+  metadata: Maybe<Scalars['JSON']>;
+  name: Maybe<Scalars['String']>;
+  productComposition: Maybe<Scalars['JSON']>;
+  productId: Maybe<Scalars['String']>;
+  provinceOfOrigin: Maybe<Scalars['String']>;
+  quantity: Scalars['Int'];
+  /** Item-specific filing readiness across GreenLight, shipment questionnaires, and required catalog registration. Consignment-level checks may still keep the shipment from filing. */
+  readiness: ZonosConsignmentItemReadiness;
+  sku: Maybe<Scalars['String']>;
+  sourceItem: ZonosConsignmentItemSource;
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosConsignmentItemMeasurement = {
+  __typename?: 'ConsignmentItemMeasurement';
+  type: Scalars['String'];
+  unitOfMeasure: Scalars['String'];
+  value: Scalars['Decimal'];
+};
+
+export type ZonosConsignmentItemReadiness =
+  /** An item finding or questionnaire needs a response. */
+  | 'ACTION_REQUIRED'
+  /** One or more item checks have not completed. */
+  | 'PENDING'
+  /** No outstanding item-specific filing work remains. */
+  | 'READY';
+
+export type ZonosConsignmentItemSource = ZonosCatalogItem | ZonosItem;
+
+export type ZonosConsignmentParty = {
+  __typename?: 'ConsignmentParty';
+  administrativeArea: Maybe<Scalars['String']>;
+  administrativeAreaCode: Maybe<Scalars['String']>;
+  companyName: Maybe<Scalars['String']>;
+  countryCode: Maybe<ZonosCountryCode>;
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  customsAssignedNumber: Maybe<Scalars['String']>;
+  email: Maybe<Scalars['String']>;
+  firstName: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  lastName: Maybe<Scalars['String']>;
+  line1: Maybe<Scalars['String']>;
+  line2: Maybe<Scalars['String']>;
+  locality: Maybe<Scalars['String']>;
+  locationId: Maybe<Scalars['ID']>;
+  partyId: Maybe<Scalars['ID']>;
+  partyType: Maybe<Scalars['String']>;
+  personId: Maybe<Scalars['ID']>;
+  phone: Maybe<Scalars['String']>;
+  postalCode: Maybe<Scalars['String']>;
+  taxIdentifierType: Maybe<Scalars['String']>;
+  taxIdentifierValue: Maybe<Scalars['String']>;
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
 /** PGA requirement applicable to a consignment. Aggregated from per-item pgaRequirements with strictest-wins semantics per (agency, code) pair. */
 export type ZonosConsignmentPgaAgency = {
   __typename?: 'ConsignmentPgaAgency';
@@ -3007,7 +5249,7 @@ export type ZonosConsignmentPgaAgency = {
   agency: ZonosBrokeragePgaAgency;
   /** PGA section code, e.g. "FD2", "AM7". Distinct codes within an agency represent distinct CBP filings (e.g. FDA cosmetics FD2 vs. food FD1). */
   code: Scalars['String'];
-  /** Whether filing is unconditionally required, or only conditionally required pending downstream evaluation (RestrictedItemDgs). */
+  /** Whether filing is unconditionally required, or only conditionally required pending further evaluation. */
   strictness: ZonosBrokeragePgaRequirementStrictness;
 };
 
@@ -3017,10 +5259,14 @@ export type ZonosConsignmentStatus =
   | 'ACCEPTED'
   /** Soft-deleted. */
   | 'ARCHIVED'
+  /** Parent Entry's summary was cancelled, by broker withdrawal or by CBP (cascade from Entry.CANCELLED). */
+  | 'CANCELLED'
   /** Initial state on create. Validated; awaiting readiness checks (landed-cost quote, green-light, …) before filing. */
   | 'CANDIDATE'
   /** On hold — held back from the readiness pipeline. Requires manual intervention to advance to CANDIDATE. */
   | 'DRAFT'
+  /** Terminal system-level failure before an entry was assigned — e.g. the ABI provider permanently rejected the entry-grouping lookup (auth/404/409). Not retried; requires intervention to refile. */
+  | 'ERROR'
   /** Parent Entry has been filed with CBP (cascade from Entry.FILED). */
   | 'FILED'
   /** Claimed by the scheduled filing job; submission to the ABI provider is in flight. */
@@ -3032,7 +5278,7 @@ export type ZonosConsignmentStatus =
   /** Parent Entry was rejected by CBP (cascade from Entry.REJECTED). */
   | 'REJECTED';
 
-/** A carrier-level shipment (Master Air Waybill / MAWB) holding one or more Consignments. Cross-org — a consolidation may contain consignments from multiple organizations. Filing happens at this level. */
+/** A carrier-level shipment (Master Air Waybill / MAWB) holding one or more Consignments. Owned by the organization that created it; consignments carry their own org and may belong to child/partner orgs (postal). Filing happens at this level. */
 export type ZonosConsolidation = {
   __typename?: 'Consolidation';
   /** Carrier arrival at US port. */
@@ -3040,6 +5286,7 @@ export type ZonosConsolidation = {
   /** SCAC / IATA carrier code. */
   carrierCode: Scalars['String'];
   createdAt: Scalars['DateTime'];
+  /** Identifier of the user or service that created the record. */
   createdBy: Scalars['ID'];
   /** Departure from exporting country. */
   exportDate: Maybe<Scalars['DateTime']>;
@@ -3048,6 +5295,8 @@ export type ZonosConsolidation = {
   locationOfGoods: Maybe<Scalars['String']>;
   /** Master bill of lading number (MAWB / MBL). */
   masterBillNumber: Scalars['String'];
+  /** Organization that owns this consolidation. */
+  organizationId: Maybe<Scalars['ID']>;
   /** Port of entry — Schedule D code where CBP processes the entry (Block 6). */
   portOfEntryCode: Scalars['String'];
   /** Port of lading — Schedule D code of the foreign port where goods were loaded for export (Block 13). */
@@ -3065,6 +5314,7 @@ export type ZonosConsolidation = {
   /** CBP mode of transport. */
   transportationMode: ZonosBrokerageTransportationMode;
   updatedAt: Scalars['DateTime'];
+  /** Identifier of the user or service that last updated the record. */
   updatedBy: Scalars['ID'];
 };
 
@@ -3110,6 +5360,8 @@ export type ZonosConsolidationEdge = {
 
 /** Entry-level fields required when filing a consolidation. Transport fields come from the consolidation itself. */
 export type ZonosConsolidationFileInput = {
+  /** Send the resulting entries to CBP automatically once entry numbers are assigned. Defaults to false. */
+  autoSend?: InputMaybe<Scalars['Boolean']>;
   /** FIRMS code or exam site. */
   locationOfGoods?: InputMaybe<Scalars['String']>;
   /** Schedule D port code where CBP processes the entry (Block 6). */
@@ -3118,15 +5370,30 @@ export type ZonosConsolidationFileInput = {
 
 /** Filters for querying consolidations. All fields are optional and combined with AND. */
 export type ZonosConsolidationFilter = {
+  /** Only return consolidations whose arrivalDate falls within this range. */
+  arrivalDate?: InputMaybe<ZonosDateTimeRange>;
   /** Exact match on SCAC / IATA carrier code. */
   carrierCode?: InputMaybe<Scalars['String']>;
   /** Only return consolidations whose createdAt falls within this range. */
   createdAt?: InputMaybe<ZonosDateTimeRange>;
+  /** Only return consolidations having at least one entry in one of these tracking-status buckets. */
+  entryStatuses?: InputMaybe<Array<ZonosBrokerageEntryClearanceStatus>>;
   /** Exact match on master bill of lading number. */
   masterBillNumber?: InputMaybe<Scalars['String']>;
+  /** Exact match on owning organization. Ignored unless the caller has cross-organization access. */
+  organizationId?: InputMaybe<Scalars['ID']>;
+  /** Case-insensitive substring match across master bill number, entry number, house bill (tracking number), and consignee name. */
+  search?: InputMaybe<Scalars['String']>;
   /** Only return consolidations in this lifecycle status. */
   status?: InputMaybe<ZonosConsolidationStatus>;
 };
+
+/** Sort order for the consolidations list. Defaults to CREATED_AT_DESC, the historical behavior. */
+export type ZonosConsolidationSort =
+  /** Latest carrier arrival first — the customer tracking views' ordering. */
+  | 'ARRIVAL_DATE_DESC'
+  /** Newest-created first. */
+  | 'CREATED_AT_DESC';
 
 /** Lifecycle status of a consolidation. */
 export type ZonosConsolidationStatus =
@@ -3589,6 +5856,27 @@ export type ZonosConstraintUnitCode =
   /** Zimbabwean Dollar */
   | 'ZWL';
 
+export type ZonosContainerComplianceReadiness = {
+  __typename?: 'ContainerComplianceReadiness';
+  containerId: Scalars['ID'];
+  containerType: ZonosContainerType;
+  /** Lines that still gate readiness: not COMPLETE, and answering a questionnaire that carries at least one REQUIRED question. An advisory questionnaire — every question PREFERRED/OPTIONAL, e.g. a free-trade certificate of origin, where declining is a legitimate outcome — never counts here, so ignoring it cannot hold a container at not-ready. Those lines remain in totalLineCount and can still be answered. */
+  outstandingLineCount: Scalars['Int'];
+  /** True only when totalLineCount > 0 and outstandingLineCount is 0. */
+  ready: Scalars['Boolean'];
+  /** Every active line on the container, gating or not. */
+  totalLineCount: Scalars['Int'];
+};
+
+export type ZonosContainerType =
+  /** The durable per-product container used by the catalog dashboard flow; containerId is the catalog item id. */
+  | 'CATALOG_ITEM'
+  | 'CONSIGNMENT'
+  | 'CONSOLIDATION'
+  /** The order/declaration object whose id the shipper provides; grouping-only, no container-level answers. */
+  | 'DECLARATION'
+  | 'LANDED_COST';
+
 export type ZonosContentType =
   | 'CSV';
 
@@ -3843,6 +6131,7 @@ export type ZonosCountryCode =
   | 'VU'
   | 'WF'
   | 'WS'
+  | 'XK'
   | 'YE'
   | 'YT'
   | 'ZA'
@@ -3864,6 +6153,10 @@ export type ZonosCountryConstraint = {
   id: Scalars['ID'];
   /** List of incoterms supported by the CountryConstraint. */
   incoterm: Maybe<Array<ZonosIncotermCode>>;
+  /** An optional consumer-facing message shown when this CountryConstraint blocks a service level from rating. When null, the service level is dropped silently. */
+  message: Maybe<Scalars['String']>;
+  /** The organization this CountryConstraint applies to. When null, the CountryConstraint is a global default that applies to all organizations. */
+  organizationId: Maybe<Scalars['ID']>;
   /** List of ISO 3166 country codes that apply in the ship from location. */
   shipFromCountryCodes: Array<ZonosCountryCode>;
   /** List of ISO 3166 country codes that apply in the ship to location. */
@@ -3895,6 +6188,18 @@ export type ZonosCountryFieldLabelCreateInput = {
   location: ZonosCountryLocationFieldLabelCreateInput;
   /** The field labels for the person */
   person: ZonosCountryPersonFieldLabelCreateInput;
+};
+
+export type ZonosCountryInferenceArchiveDltReplayResult = {
+  __typename?: 'CountryInferenceArchiveDltReplayResult';
+  /** The exclusive upper bound this call replayed up to. Pass back as `untilOffset`. */
+  ceiling: Scalars['String'];
+  /** The offset of the last message replayed. Null when this call replayed nothing. */
+  lastOffset: Maybe<Scalars['String']>;
+  /** Whether the dead-letter topic still holds messages below `ceiling`. */
+  remaining: Scalars['Boolean'];
+  /** The number of messages copied to the main archive topic by this call. */
+  replayed: Scalars['Int'];
 };
 
 export type ZonosCountryLocationFieldLabel = {
@@ -4299,7 +6604,7 @@ export type ZonosCreateLocationInput = {
   plusCode?: InputMaybe<Scalars['String']>;
   /** The postal or ZIP code of the location. */
   postalCode?: InputMaybe<Scalars['String']>;
-  /** The type of property associated with the location (e.g., RESIDENTIAL, COMMERCIAL). */
+  /** Whether this location is a residential or commercial property. Carriers use it to classify the delivery; FedEx, for example, applies a residential delivery surcharge to residential recipients. When left unset on a ship-to party, the destination defaults to RESIDENTIAL so that carrier options requiring a residential address (such as FedEx indirect signature) remain available. Set COMMERCIAL for business deliveries to avoid the residential surcharge. */
   propertyType?: InputMaybe<ZonosPropertyType>;
 };
 
@@ -4661,6 +6966,8 @@ export type ZonosCustomsDescriptionCombineAndCreateItemInput = {
   itemAge?: InputMaybe<Scalars['String']>;
   /** The id of the item. */
   itemId?: InputMaybe<Scalars['String']>;
+  /** The language of the item text. Used to translate non-English text to English before classification. */
+  languageCode?: InputMaybe<ZonosLanguageCode>;
   /** The material composition of an item for classification. */
   material?: InputMaybe<Scalars['String']>;
   /** The product name or short description. */
@@ -4669,6 +6976,108 @@ export type ZonosCustomsDescriptionCombineAndCreateItemInput = {
   productId?: InputMaybe<Scalars['String']>;
 };
 
+/** Result of an item classification-readiness validation. `content` echoes the item data that was validated, so each stored validation is self-describing. */
+export type ZonosCustomsDescriptionValidation = {
+  __typename?: 'CustomsDescriptionValidation';
+  /** Clarifying details that, if added to the item's description, would resolve the ambiguity found during readiness checking. Empty when status is READY. For INCOMPLETE, adding these would allow determining the 6-digit subheading. For READY_TO_SUBHEADING, the subheading is already determined and adding these would allow determining the country-specific tariff line. */
+  clarifications: Array<Scalars['String']>;
+  /** The item data that was validated (the input, with `existingItemId` fields resolved). */
+  content: ZonosCustomsDescriptionValidationContent;
+  /** When this `CustomsDescriptionValidation` was created. */
+  createdAt: Scalars['DateTime'];
+  /** The user that created this `CustomsDescriptionValidation`. */
+  createdBy: Scalars['ID'];
+  /** The `CustomsDescriptionValidation` ID. */
+  id: Scalars['ID'];
+  /**
+   * The missing decisive attribute(s) as a short phrase (e.g. "fiber content" or "material, construction"), suitable for composing a user-facing message. Mirrors `clarifications` (joined into a single string); null unless status is INCOMPLETE or READY_TO_SUBHEADING.
+   * @deprecated Use `clarifications` instead.
+   */
+  missingAttributes: Maybe<Scalars['String']>;
+  /** The unique identifier associated with an organization. */
+  organization: Scalars['ID'];
+  /** Session for this item's clarification attempts. Return this ID as `input.sessionId` on the next call. Null for historical validations created without session support. May differ from the supplied ID when a fresh session was required. */
+  sessionId: Maybe<Scalars['ID']>;
+  /** The readiness status of the validated item information. */
+  status: ZonosCustomsDescriptionValidationStatus;
+  /** When this `CustomsDescriptionValidation` was most recently updated. */
+  updatedAt: Scalars['DateTime'];
+  /** User who most recently updated this `CustomsDescriptionValidation`. */
+  updatedBy: Scalars['ID'];
+};
+
+/** An auto-generated type for paginating through multiple `CustomsDescriptionValidations`. */
+export type ZonosCustomsDescriptionValidationConnection = {
+  __typename?: 'CustomsDescriptionValidationConnection';
+  /** A list of `Edges`. */
+  edges: Array<ZonosCustomsDescriptionValidationEdge>;
+  /** Pagination information about the connection. */
+  pageInfo: ZonosPageInfo;
+};
+
+/** The item data a `CustomsDescriptionValidation` was performed on. */
+export type ZonosCustomsDescriptionValidationContent = {
+  __typename?: 'CustomsDescriptionValidationContent';
+  /** Item price amount, as validated, converted to USD when possible. */
+  amount: Maybe<Scalars['Decimal']>;
+  /** List of categories associated and describing the item, as validated. */
+  categories: Array<Scalars['String']>;
+  /** Currency of `amount`, as validated. */
+  currencyCode: Maybe<ZonosCurrencyCode>;
+  /** Human-readable description of the item, as validated. */
+  description: Maybe<Scalars['String']>;
+  /** ID of the existing `Item` that was validated, when one was supplied. */
+  existingItemId: Maybe<Scalars['ID']>;
+  /** Material or composition of the item, as validated. */
+  material: Maybe<Scalars['String']>;
+  /** Name of the item, as validated. */
+  name: Maybe<Scalars['String']>;
+  /** Destination country used for the validation, as validated. */
+  shipToCountry: Maybe<ZonosCountryCode>;
+};
+
+/** An auto-generated type used in pagination. */
+export type ZonosCustomsDescriptionValidationEdge = {
+  __typename?: 'CustomsDescriptionValidationEdge';
+  /** A string used to identify this object in the current pagination connection. */
+  cursor: Scalars['String'];
+  /** The object located at this `Edge`. */
+  node: ZonosCustomsDescriptionValidation;
+};
+
+/** Item information to validate for classification readiness. Provide either the ID of an existing `Item`, or the item fields directly (at least one descriptive field). Mirrors the fields the classification services consume. */
+export type ZonosCustomsDescriptionValidationInput = {
+  /** Item price amount, if known. Lets readiness settle tariff lines that depend on value. Amounts in other currencies are converted to USD. */
+  amount?: InputMaybe<Scalars['Decimal']>;
+  /** List of categories associated and describing the item. */
+  categories?: InputMaybe<Array<Scalars['String']>>;
+  /** Currency of `amount`. */
+  currencyCode?: InputMaybe<ZonosCurrencyCode>;
+  /** Human-readable description of the item. */
+  description?: InputMaybe<Scalars['String']>;
+  /** ID of an existing `Item` to validate. When provided, the stored item's fields are used and any fields supplied here override the stored values. */
+  existingItemId?: InputMaybe<Scalars['ID']>;
+  /** Material or composition of the item, if known (e.g. "55% cotton, 45% polyester"). */
+  material?: InputMaybe<Scalars['String']>;
+  /** Name of the item. */
+  name?: InputMaybe<Scalars['String']>;
+  /** Session returned by an earlier validation of the same item. Omit to start a new session; return this ID with the complete, updated item information on subsequent calls. Sessions belong to the calling organization and use one destination country. A changed destination starts a new session. */
+  sessionId?: InputMaybe<Scalars['ID']>;
+  /** Destination country. When provided, readiness also considers whether the text is enough to pick a country-specific tariff line, not just the 6-digit subheading (enables the READY_TO_SUBHEADING status). When omitted, only subheading-level (6-digit) readiness is checked. */
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+/** Classification-readiness of an item's information. Status is advisory: the caller decides the consequence for each value (proceed, warn, ask the user to add detail, or reject). */
+export type ZonosCustomsDescriptionValidationStatus =
+  /** The information identifies the item but choosing between the plausible 6-digit subheadings would require an assumption. `clarifications` says what to ask for. */
+  | 'INCOMPLETE'
+  /** No further clarification is requested before proceeding to classification. The information may be sufficient, or session review may have removed questions that were already asked, answered, or not useful. This advisory status does not guarantee that every classification detail is known. */
+  | 'READY'
+  /** The 6-digit HS subheading is confidently determined, but a decisive attribute is still missing to pick the correct country-specific tariff line within it. Only possible when `shipToCountry` was supplied — generic (no-country) checks have no tariff tier to be ambiguous about. `clarifications` says what's needed. */
+  | 'READY_TO_SUBHEADING'
+  /** The text does not establish what the item fundamentally is (empty, bare SKUs or internal codes, or gibberish), or the classification service could not produce any plausible candidates for it. Ask the user to re-enter the item. */
+  | 'UNRECOGNIZABLE';
+
 export type ZonosCustomsDescriptionsCreateInput = {
   categories?: InputMaybe<Array<Scalars['String']>>;
   description?: InputMaybe<Scalars['String']>;
@@ -4676,6 +7085,7 @@ export type ZonosCustomsDescriptionsCreateInput = {
   imageUrl?: InputMaybe<Scalars['String']>;
   itemAge?: InputMaybe<Scalars['String']>;
   itemId?: InputMaybe<Scalars['String']>;
+  languageCode?: InputMaybe<ZonosLanguageCode>;
   material?: InputMaybe<Scalars['String']>;
   name: Scalars['String'];
   productId?: InputMaybe<Scalars['String']>;
@@ -4709,6 +7119,19 @@ export type ZonosCustomsDocumentCarrier =
   | 'DHL'
   | 'FEDEX'
   | 'UPS';
+
+export type ZonosCustomsDocumentCarrierUploadFromFileInput = {
+  /** The carrier the document will be uploaded to (e.g. FEDEX). */
+  carrier: ZonosCustomsDocumentCarrier;
+  /** The type of CustomsDocument i.e. CERTIFICATE_OF_ORIGIN, COMMERCIAL_INVOICE */
+  documentType: ZonosCustomsDocumentType;
+  /** Base64-encoded contents of the document file. */
+  fileBase64: Scalars['String'];
+  /** File name including extension (e.g. "invoice.pdf"); determines the file type. */
+  fileName: Scalars['String'];
+  /** ID of the `Order` this document should be correlated with. */
+  orderId: Scalars['ID'];
+};
 
 export type ZonosCustomsDocumentConnection = {
   __typename?: 'CustomsDocumentConnection';
@@ -5169,6 +7592,12 @@ export type ZonosCustomsSpecUpdateInput = {
   trackingNumber?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosDangerousGoodsAccessibility =
+  /** Accessible during flight. */
+  | 'ACCESSIBLE'
+  /** Inaccessible during flight (cargo hold). */
+  | 'INACCESSIBLE';
+
 /** Regulatory categories for dangerous goods declared on a `ShipmentCarton`. Drives carrier-specific service-code mapping in downstream services (e.g., LabelDgs). */
 export type ZonosDangerousGoodsCategory =
   /** Biological substance (UN3373). */
@@ -5177,6 +7606,8 @@ export type ZonosDangerousGoodsCategory =
   | 'CONSUMER_COMMODITY'
   /** Excepted Quantity per IATA. */
   | 'EXCEPTED_QUANTITY'
+  /** Fully regulated dangerous goods, i.e. no exemption or special provision applies. Maps to the UPS HazMat CommodityRegulatedLevelCode FR. */
+  | 'FULLY_REGULATED'
   /** Limited Quantity per ADR. */
   | 'LIMITED_QUANTITY'
   /** Magnetized material (UN2807). */
@@ -5188,16 +7619,71 @@ export type ZonosDangerousGoodsCategory =
   /** Not Restricted per IATA Special Provision A70 (pressurized articles, UN3164). */
   | 'NOT_RESTRICTED_A70';
 
+export type ZonosDangerousGoodsContainer = {
+  __typename?: 'DangerousGoodsContainer';
+  /** Type of container (e.g., plastic jug, fiberboard box). */
+  containerType: Scalars['String'];
+  /** Hazardous commodities packed in this container. */
+  hazardousCommodities: Array<ZonosHazardousCommodity>;
+  /** Number of identical containers. */
+  numberOfContainers: Scalars['Int'];
+};
+
+export type ZonosDangerousGoodsContainerInput = {
+  /** Type of container (e.g., plastic jug, fiberboard box). */
+  containerType: Scalars['String'];
+  /** Hazardous commodities packed in this container. */
+  hazardousCommodities: Array<ZonosHazardousCommodityInput>;
+  /** Number of identical containers. */
+  numberOfContainers: Scalars['Int'];
+};
+
 export type ZonosDangerousGoodsDetail = {
   __typename?: 'DangerousGoodsDetail';
+  /** Accessibility of the dangerous goods aboard an aircraft (regulated air DG). */
+  accessibility: Maybe<ZonosDangerousGoodsAccessibility>;
+  /** Cargo-aircraft-only flag: the goods may only travel on a cargo aircraft, not a passenger aircraft. */
+  cargoAircraftOnly: Maybe<Scalars['Boolean']>;
   /** The regulatory category of the dangerous goods in this package. */
   category: ZonosDangerousGoodsCategory;
+  /** Containers of hazardous commodities in this package. Required for carriers that need a full chemical record (e.g. UPS HazMat); DHL uses `category` alone. */
+  containers: Maybe<Array<ZonosDangerousGoodsContainer>>;
+  /** Name of the 24-hour emergency contact, or a contract number such as a CHEMTREC subscription. UPS requires this whenever an emergency phone number is present and the shipment has a US or PR origin or destination under IATA air rules. */
+  emergencyContactName: Maybe<Scalars['String']>;
+  /** 24-hour emergency contact phone number for the dangerous goods. */
+  emergencyContactNumber: Maybe<Scalars['String']>;
+  /** Additional dangerous-goods shipping options. */
+  options: Maybe<Array<ZonosDangerousGoodsOption>>;
 };
 
 export type ZonosDangerousGoodsDetailInput = {
+  /** Accessibility of the dangerous goods aboard an aircraft (regulated air DG). */
+  accessibility?: InputMaybe<ZonosDangerousGoodsAccessibility>;
+  /** Cargo-aircraft-only flag: the goods may only travel on a cargo aircraft, not a passenger aircraft. */
+  cargoAircraftOnly?: InputMaybe<Scalars['Boolean']>;
   /** The regulatory category of the dangerous goods in this package. */
   category: ZonosDangerousGoodsCategory;
+  /** Containers of hazardous commodities in this package. Required for carriers that need a full chemical record (e.g. UPS HazMat); DHL uses `category` alone. */
+  containers?: InputMaybe<Array<ZonosDangerousGoodsContainerInput>>;
+  /** Name of the 24-hour emergency contact, or a contract number such as a CHEMTREC subscription. UPS requires this whenever an emergency phone number is present and the shipment has a US or PR origin or destination under IATA air rules. */
+  emergencyContactName?: InputMaybe<Scalars['String']>;
+  /** 24-hour emergency contact phone number for the dangerous goods. */
+  emergencyContactNumber?: InputMaybe<Scalars['String']>;
+  /** Additional dangerous-goods shipping options. */
+  options?: InputMaybe<Array<ZonosDangerousGoodsOption>>;
 };
+
+export type ZonosDangerousGoodsOption =
+  /** Hazardous materials. */
+  | 'HAZARDOUS_MATERIALS'
+  /** Limited quantities commodities. */
+  | 'LIMITED_QUANTITIES_COMMODITIES'
+  /** ORM-D (Other Regulated Materials - Domestic). */
+  | 'ORM_D'
+  /** Reportable quantities. */
+  | 'REPORTABLE_QUANTITIES'
+  /** Small quantity exception. */
+  | 'SMALL_QUANTITY_EXCEPTION';
 
 export type ZonosDashboardSettings = {
   __typename?: 'DashboardSettings';
@@ -5297,6 +7783,7 @@ export type ZonosDeclaration = {
   parties: Array<ZonosParty>;
   /** The status of payment for this Declaration */
   paymentStatus: ZonosDeclarationPaymentStatus;
+  preClearanceCheck: ZonosDeclarationPreClearanceCheck;
   /** Shipment associated with this Declaration */
   shipments: Array<ZonosShipment>;
   /** The source of the Declaration i.e. ZONOS, POST, PREPAY */
@@ -5381,6 +7868,23 @@ export type ZonosDeclarationPaymentStatus =
   | 'AUTHORIZED'
   | 'OPEN'
   | 'PAID';
+
+export type ZonosDeclarationPreClearanceCheck = {
+  __typename?: 'DeclarationPreClearanceCheck';
+  flaggedItems: Array<ZonosItem>;
+  status: ZonosDeclarationPreClearanceStatus;
+};
+
+export type ZonosDeclarationPreClearanceFilter = {
+  id?: InputMaybe<Scalars['ID']>;
+  landedCostId?: InputMaybe<Scalars['ID']>;
+  trackingNumber?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosDeclarationPreClearanceStatus =
+  | 'CONDITIONAL_REQUIREMENTS_PENDING'
+  | 'MISSING_REQUIREMENTS'
+  | 'READY';
 
 export type ZonosDeclarationResult = {
   __typename?: 'DeclarationResult';
@@ -5536,24 +8040,6 @@ export type ZonosDeniedPartyAction =
   /** Review `PartyScreening.matches` to adjudicate potential matches. */
   | 'REVIEW';
 
-/** DeniedParty Connection */
-export type ZonosDeniedPartyConnection = {
-  __typename?: 'DeniedPartyConnection';
-  /** Field edges */
-  edges: Maybe<Array<Maybe<ZonosDeniedPartyEdge>>>;
-  /** Field pageInfo */
-  pageInfo: ZonosPageInfo;
-};
-
-/** DeniedParty Edge */
-export type ZonosDeniedPartyEdge = {
-  __typename?: 'DeniedPartyEdge';
-  /** Field cursor */
-  cursor: Maybe<Scalars['String']>;
-  /** Field node */
-  node: Maybe<ZonosDeniedParty>;
-};
-
 export type ZonosDeniedPartyLocationInput = {
   administrativeArea?: InputMaybe<Scalars['String']>;
   administrativeAreaCode?: InputMaybe<Scalars['String']>;
@@ -5580,6 +8066,26 @@ export type ZonosDeniedPartyPersonInput = {
   phone?: InputMaybe<Scalars['String']>;
 };
 
+/** A single (parent-answer-combo → option list) entry within a DependentOptionSet. */
+export type ZonosDependentOptionEntry = {
+  __typename?: 'DependentOptionEntry';
+  /** The selectable options when the parent values match. */
+  options: Array<ZonosCodeOption>;
+  /** The parent answer values this entry applies to (empty for root questions). */
+  parentValues: Array<ZonosAnswerRef>;
+};
+
+/** Flat entry in the up-front dependent-options table for a provider-backed question. */
+export type ZonosDependentOptionSet = {
+  __typename?: 'DependentOptionSet';
+  /** Codes of parent questions whose answers gate which entry applies (empty = root). */
+  dependsOn: Array<Scalars['String']>;
+  /** One entry per distinct parent-answer combination. */
+  entries: Array<ZonosDependentOptionEntry>;
+  /** The question code this set populates. */
+  questionCode: Scalars['String'];
+};
+
 export type ZonosDescriptionOverride = {
   __typename?: 'DescriptionOverride';
   /** A string value to be used to override item descriptions */
@@ -5604,6 +8110,116 @@ export type ZonosDescriptionOverrideScope =
   /** Only override the item descriptions on labels */
   | 'LABELS';
 
+/** FDA's regulatory class for a device product code (see devicePremarketRequirement). */
+export type ZonosDeviceClass =
+  /** Class I — the lowest-risk class, and the one most 510(k)-exempt codes sit in. */
+  | 'CLASS_I'
+  /** Class II — most codes requiring a 510(k). */
+  | 'CLASS_II'
+  /** Class III — the highest-risk class, where a PMA is normally required. */
+  | 'CLASS_III'
+  /** Not classified: FDA's own "N", a code predating classification or awaiting it. */
+  | 'NOT_CLASSIFIED'
+  /** Unclassified: FDA's own "U". */
+  | 'UNCLASSIFIED'
+  /** A class FDA prints but never defined — the undocumented \"f\" on 51 codes — or none at all. Named rather than guessed at, so the client can show the code without inventing a meaning for it. */
+  | 'UNSPECIFIED';
+
+/** Which party a device establishment typeahead should offer, since FDA registers the same firm under several types (see deviceEstablishmentSuggest). */
+export type ZonosDeviceEstablishmentRole =
+  /** Registered as Foreign Exporter — the party DFE names. */
+  | 'FOREIGN_EXPORTER'
+  /** Registered as Manufacturer outside the US — the party DEV names. */
+  | 'FOREIGN_MANUFACTURER'
+  /** Registered as Manufacturer inside the US — the party DDM names. */
+  | 'UNITED_STATES_MANUFACTURER';
+
+/** Optional scoping for a device establishment typeahead (see deviceEstablishmentSuggest). */
+export type ZonosDeviceEstablishmentSuggestFilter = {
+  /** The line's country of origin, matched against the country the site is registered in. A large firm registers many sites and only the ones in the shipping country are plausible. Null searches every country. */
+  countryOfOrigin?: InputMaybe<ZonosCountryCode>;
+  /** The line's three-letter FDA product code, which fda_pcb_class and fda_pcb_group spell together. Keeps the result to firms that actually list this device — the strongest filter available, since a large manufacturer registers many sites and a name alone matches all of them. */
+  productCode?: InputMaybe<Scalars['String']>;
+  /** Which registered party the question names. Firms FDA has registered with no establishment type at all are still offered, since 2,835 registrations carry none, but they rank below the firms registered for the role. */
+  role?: InputMaybe<ZonosDeviceEstablishmentRole>;
+};
+
+/** A registered FDA device establishment offered as a typeahead suggestion (see deviceEstablishmentSuggest). */
+export type ZonosDeviceEstablishmentSuggestion = {
+  __typename?: 'DeviceEstablishmentSuggestion';
+  /** State or province code; FDA publishes one on US rows and a region name on a few others. */
+  administrativeAreaCode: Maybe<Scalars['String']>;
+  /** Country of the registered site. */
+  countryCode: Maybe<ZonosCountryCode>;
+  /** Establishment types FDA registered this firm under, e.g. ["Manufacturer","Foreign Exporter"]. Empty on the registrations that carry none. */
+  establishmentTypes: Array<Scalars['String']>;
+  /** When the registration lapses. Device registrations renew annually, 1 Oct - 31 Dec, and FDA publishes the year alone — so this is the last second of 31 December in it. */
+  expiresAt: Maybe<Scalars['DateTime']>;
+  /** FDA Establishment Identifier for the same site, published in FDA's device files under its older name FEI_NUMBER. Not what DEV or DFE ask for, but it identifies the site across FDA's own systems. */
+  fdaEstablishmentId: Maybe<Scalars['String']>;
+  firmName: Scalars['String'];
+  /** Street address of the registered site. */
+  line1: Maybe<Scalars['String']>;
+  /** Second street line, where FDA publishes one. */
+  line2: Maybe<Scalars['String']>;
+  /** City or town of the registered site — with line1 it is what tells two identically-named sites apart. */
+  locality: Maybe<Scalars['String']>;
+  /** Postal code of the registered site. */
+  postalCode: Maybe<Scalars['String']>;
+  /** Premarket numbers this firm lists for the filter's productCode, so accepting a suggestion can answer PM# as well as DEV or DFE. Empty when no product code was filtered on, or when the listing carries none. */
+  premarketNumbers: Array<Scalars['String']>;
+  /** The registration number DEV and DFE ask for — the reason the suggestion exists. */
+  registrationNumber: Scalars['String'];
+};
+
+/** Whether FDA requires a premarket number for a device product code (see devicePremarketRequirement). */
+export type ZonosDevicePremarketRequirement = {
+  __typename?: 'DevicePremarketRequirement';
+  /** FDA's device class for the product code. */
+  deviceClass: Maybe<ZonosDeviceClass>;
+  /** FDA's name for the product code, e.g. "Protector, Dental". */
+  deviceName: Maybe<Scalars['String']>;
+  productCode: Scalars['String'];
+  /** 21 CFR citation for the classification regulation, e.g. 868.5820. */
+  regulationNumber: Maybe<Scalars['String']>;
+  /** What FDA's classification file says the code requires. */
+  status: ZonosDevicePremarketStatus;
+};
+
+/** FDA's premarket requirement for a device product code (see devicePremarketRequirement). */
+export type ZonosDevicePremarketStatus =
+  /** 510(k) exempt — 2,638 of the 7,088 product codes. No premarket number exists for any of them, so PM# has no answer and should not be asked. */
+  | 'EXEMPT'
+  /** Requires premarket notification — a 510(k) number, the K-prefixed answer PM# expects most often. The number is guaranteed to exist, so PM# is worth insisting on. */
+  | 'REQUIRED_510K'
+  /** Requires premarket approval — a PMA number, P-prefixed. As with a 510(k), the number is guaranteed to exist and PM# is worth insisting on. */
+  | 'REQUIRED_PMA'
+  /** FDA's submission type is one of the rare mixed ones (3, 6, 7, 8) or blank, so it settles nothing either way — ask PM# without insisting on it. */
+  | 'UNSPECIFIED';
+
+/** What to offer for the PM# affirmation (see devicePremarketSuggest). */
+export type ZonosDevicePremarketSuggestFilter = {
+  /** Firm name, or the part of it the filer has typed, for offering candidates before they have settled on a firm. Ignored when registrationNumber is given. */
+  firmName?: InputMaybe<Scalars['String']>;
+  /** The line's three-letter FDA product code. Required — a premarket number is only meaningful against the device it clears. */
+  productCode: Scalars['String'];
+  /** Registration number of the firm the filer named, from deviceEstablishmentSuggest. Narrows the result to that firm's own listings. */
+  registrationNumber?: InputMaybe<Scalars['String']>;
+};
+
+/** A premarket number FDA publishes on a device listing (see devicePremarketSuggest). */
+export type ZonosDevicePremarketSuggestion = {
+  __typename?: 'DevicePremarketSuggestion';
+  /** The firm whose listing carries the number. */
+  firmName: Scalars['String'];
+  /** The 510(k) or PMA number itself, e.g. K031777 or P980016. */
+  premarketNumber: Scalars['String'];
+  /** The product code it is listed against. */
+  productCode: Scalars['String'];
+  /** Registration number of the listing firm, which is also the DEV or DFE answer for it. */
+  registrationNumber: Scalars['String'];
+};
+
 export type ZonosDimensionalUnitCode =
   | 'CENTIMETER'
   | 'DECIMETER'
@@ -5617,11 +8233,177 @@ export type ZonosDisclaimType =
   | 'A'
   | 'B';
 
+/** Recursive show/hide predicate for a question. A node is either a composite (exactly one of allOf / anyOf / not) or a leaf (questionCode + operator, with values when the operator compares values). */
+export type ZonosDisplayCondition = {
+  __typename?: 'DisplayCondition';
+  /** Composite: every nested condition must evaluate true. */
+  allOf: Maybe<Array<ZonosDisplayCondition>>;
+  /** Composite: at least one nested condition must evaluate true. */
+  anyOf: Maybe<Array<ZonosDisplayCondition>>;
+  /** Composite: negates the nested condition. */
+  not: Maybe<ZonosDisplayCondition>;
+  /** Leaf: how to compare the referenced answer against values. */
+  operator: Maybe<ZonosConditionOperator>;
+  /** Leaf: stable code of the question whose answer is inspected. */
+  questionCode: Maybe<Scalars['String']>;
+  /** Leaf: option/literal values to compare against. Omitted for ANSWERED / NOT_ANSWERED. */
+  values: Maybe<Array<Scalars['String']>>;
+};
+
+/** The lifecycle status of a `DocumentExtraction`. */
+export type ZonosDocumentExtractionStatus =
+  /** Extraction is valid and returned by queries. */
+  | 'ACTIVE'
+  /** Extraction is soft-deleted. */
+  | 'DELETED'
+  /** A terminal extraction failure (persisted by the DLT handler after retries exhaust). Not ACTIVE, so the document stays re-extractable. */
+  | 'FAILED';
+
 export type ZonosDocumentFilingType =
   /** The documents associated with the label were sent electronically */
   | 'ELECTRONIC'
   /** The documents associated with the label are available to be downloaded */
   | 'HARD_COPY';
+
+/** A link between a document and an item, order, shipment, or product. A document may have many references; an entity may be referenced by many documents. */
+export type ZonosDocumentReference = {
+  __typename?: 'DocumentReference';
+  /** The ID of the thing this document applies to. The format depends on `referenceType`: a Zonos item, order, or shipment ID, or your own SKU or product ID. */
+  referenceId: Scalars['ID'];
+  /** What kind of thing the document is attached to. */
+  referenceType: ZonosDocumentReferenceType;
+};
+
+/** Identifies what a document applies to. */
+export type ZonosDocumentReferenceInput = {
+  /** The ID of the thing this document applies to. The format depends on `referenceType`: a Zonos item, order, or shipment ID, or your own SKU or product ID. */
+  referenceId: Scalars['ID'];
+  /** What kind of thing the document is attached to. */
+  referenceType: ZonosDocumentReferenceType;
+};
+
+/** The kind of entity a `DocumentReference` attaches a document to. */
+export type ZonosDocumentReferenceType =
+  /** A product in your Zonos catalog. This is the usual choice for compliance documents, because one certificate then covers every shipment of that product. */
+  | 'CATALOG_ITEM'
+  /** A single item on one order. */
+  | 'ITEM'
+  /** One specific order. */
+  | 'ORDER'
+  /** Your own product ID. The document covers every shipment of that product. */
+  | 'PRODUCT'
+  /** One specific shipment. */
+  | 'SHIPMENT'
+  /** Your own SKU. The document covers every shipment of that SKU, such as a trade agreement certificate for all units of a product. */
+  | 'SKU'
+  /** A carrier tracking number. Transaction-level, but supports the document-first flow where the document arrives before the shipment exists — a manifest later joins on the tracking number to resolve its documents. */
+  | 'TRACKING_NUMBER';
+
+/** The PG22 substantiating-evidence verdict for a `DocumentExtraction`. */
+export type ZonosDocumentVerdict =
+  /** The document fails substantiation (see `verdictReasons`) — fail-closed. */
+  | 'BLOCK'
+  /** No v1 ruleset applies to this doc type (e.g. non-FTA) — not judged. */
+  | 'NOT_EVALUATED'
+  /** The document substantively supports the preferential-tariff claim. */
+  | 'PASS';
+
+/** Optional scoping for a drug establishment typeahead (see drugEstablishmentSuggest). */
+export type ZonosDrugEstablishmentSuggestFilter = {
+  /** The line's country of origin, matched against the country the site is registered in — a drug's manufacturing site is in the country it originates from, so this collapses a multinational to the plausible few. Null searches every country. */
+  countryOfOrigin?: InputMaybe<ZonosCountryCode>;
+};
+
+/** A registered FDA drug establishment offered as a manufacturer typeahead suggestion (see drugEstablishmentSuggest). */
+export type ZonosDrugEstablishmentSuggestion = {
+  __typename?: 'DrugEstablishmentSuggestion';
+  /** State, province or region, spelled out as DECRS prints it. */
+  administrativeArea: Maybe<Scalars['String']>;
+  /** State code; published for US rows only. */
+  administrativeAreaCode: Maybe<Scalars['String']>;
+  /** Registered operations, e.g. MANUFACTURE, API MANUFACTURE, REPACK. */
+  businessOperations: Array<Scalars['String']>;
+  /** Country of the registered site. */
+  countryCode: Maybe<ZonosCountryCode>;
+  /** Dun & Bradstreet number — FDA's preferred REG answer. */
+  duns: Maybe<Scalars['String']>;
+  /** When the registration lapses. Drug registrations renew annually, 1 Oct - 31 Dec. */
+  expiresAt: Maybe<Scalars['DateTime']>;
+  /** FDA Establishment Identifier; also accepted as a REG answer. */
+  fdaEstablishmentId: Scalars['String'];
+  /** The establishment's name as FDA registers it. */
+  firmName: Scalars['String'];
+  /** Street address, split the way an ACE filing needs it: PG19 carries Entity Address 1 in 23 characters and overflows into PG20, which requires city and ISO country in their own fields. Split from the one line DECRS publishes, so it is null where that could not be done with confidence. */
+  line1: Maybe<Scalars['String']>;
+  /** Overflow of the street address, for PG20. */
+  line2: Maybe<Scalars['String']>;
+  /** City or town of the registered site — with line1 it is what tells two identically-named sites apart. */
+  locality: Maybe<Scalars['String']>;
+  /** Postal code of the registered site. */
+  postalCode: Maybe<Scalars['String']>;
+};
+
+/** Which affirmation branch a listed drug product belongs to — what FDA's own export calls finished and unfinished. Used by the NDC Directory mirror that follows in a later change; defined here first so every DGS is rebuilt against it before any Java refers to it. */
+export type ZonosDrugListingType =
+  /** A finished product, ready for use as it ships. What plain DLS asks about. */
+  | 'FINISHED'
+  /** A bulk ingredient or a drug for further processing. The branch aoc_dls_bulk asks about. */
+  | 'UNFINISHED';
+
+/** One pack size of a listed product, and the DLS value it yields (see drugProductSuggest). */
+export type ZonosDrugPackageSuggestion = {
+  __typename?: 'DrugPackageSuggestion';
+  /** FDA's description of the pack, e.g. "90 TABLET, FILM COATED in 1 BOTTLE" — how a filer recognises theirs. */
+  description: Maybe<Scalars['String']>;
+  /** What DLS files: the package NDC with its dashes stripped, ten digits. */
+  drugListingNumber: Scalars['String'];
+  /** The package NDC as published, e.g. "58151-155-77" — the form printed on the carton. */
+  packageNationalDrugCode: Scalars['String'];
+};
+
+/** Optional scoping for a drug product typeahead (see drugProductSuggest). */
+export type ZonosDrugProductSuggestFilter = {
+  /** Which branch is being answered: FINISHED for a finished product (plain DLS), UNFINISHED for a bulk substance or drug for further processing (the aoc_dls_bulk branch). Null spans both. */
+  listingType?: InputMaybe<ZonosDrugListingType>;
+};
+
+/** A listed FDA drug product offered as a trade-name typeahead suggestion (see drugProductSuggest). */
+export type ZonosDrugProductSuggestion = {
+  __typename?: 'DrugProductSuggestion';
+  /** The application number as FDA publishes it, e.g. "NDA020702" — what the filer recognises. */
+  applicationNumber: Maybe<Scalars['String']>;
+  brandName: Maybe<Scalars['String']>;
+  /** What DA files: the six digits of the application number. Null where the product has none, and null for an OTC monograph reference, which is not an application number and must never be filed as one. */
+  drugApplicationNumber: Maybe<Scalars['String']>;
+  /** When the listing lapses. */
+  expiresAt: Maybe<Scalars['DateTime']>;
+  /** Absent on about a sixth of listed products, which is why a generic name also matches. */
+  genericName: Maybe<Scalars['String']>;
+  /** The firm listing the product — what tells two products of the same name apart. */
+  labelerName: Maybe<Scalars['String']>;
+  /** Whether this is a finished product or a bulk substance — which branch it answers. */
+  listingType: ZonosDrugListingType;
+  /** The pack sizes this product is listed in; DLS is answered from one of these, not from the product. */
+  packages: Array<ZonosDrugPackageSuggestion>;
+  /** Labeler-product NDC as published. Not what DLS files — see the packages. */
+  productNationalDrugCode: Scalars['String'];
+  productType: Maybe<Scalars['String']>;
+};
+
+export type ZonosDryIceDetail = {
+  __typename?: 'DryIceDetail';
+  /** Weight of dry ice in the package. */
+  weight: Scalars['Decimal'];
+  /** Unit of the dry ice weight. */
+  weightUnit: ZonosWeightUnitCode;
+};
+
+export type ZonosDryIceDetailInput = {
+  /** Weight of dry ice in the package. */
+  weight: Scalars['Decimal'];
+  /** Unit of the dry ice weight. */
+  weightUnit: ZonosWeightUnitCode;
+};
 
 /** Represents a duty amount on a `LandedCost` quote */
 export type ZonosDuty = {
@@ -5724,6 +8506,12 @@ export type ZonosDynamicPackagingStatus =
   | 'DISABLED'
   | 'ENABLED';
 
+export type ZonosEffectTarget =
+  /** Writes the answer to Item.attributes[effectKey]. */
+  | 'ITEM_ATTRIBUTE'
+  /** Writes the answer to a field on the response's ItemComposition entry; effectKey is the field name (material, percentage, countryOfCast, etc.). */
+  | 'ITEM_PRODUCT_COMPOSITION';
+
 /** Determines the base visual style for an AppearanceSettings object. */
 export type ZonosElementsUiStyle =
   | 'ROUNDED'
@@ -5739,33 +8527,161 @@ export type ZonosEndOfDayBehavior =
   | 'EXEMPT'
   | 'REQUIRED';
 
-export type ZonosErrorDetail =
-  /** The deadline expired before the operation could complete. For operations that change the state of the system, this error may be returned even if the operation has completed successfully. For example, a successful response from a server could have been delayed long enough for the deadline to expire. HTTP Mapping: 504 Gateway Timeout Error Type: UNAVAILABLE */
-  | 'DEADLINE_EXCEEDED'
-  /** The server detected that the client is exhibiting a behavior that might be generating excessive load. HTTP Mapping: 420 Enhance Your Calm Error Type: UNAVAILABLE */
-  | 'ENHANCE_YOUR_CALM'
-  /** The requested field is not found in the schema. This differs from `NOT_FOUND` in that `NOT_FOUND` should be used when a query is valid, but is unable to return a result (if, for example, a specific video id doesn't exist). `FIELD_NOT_FOUND` is intended to be returned by the server to signify that the requested field is not known to exist. This may be returned in lieu of failing the entire query. See also `PERMISSION_DENIED` for cases where the requested field is invalid only for the given user or class of users. HTTP Mapping: 404 Not Found Error Type: BAD_REQUEST */
-  | 'FIELD_NOT_FOUND'
-  /** The client specified an invalid argument. Note that this differs from `FAILED_PRECONDITION`. `INVALID_ARGUMENT` indicates arguments that are problematic regardless of the state of the system (e.g., a malformed file name). HTTP Mapping: 400 Bad Request Error Type: BAD_REQUEST */
-  | 'INVALID_ARGUMENT'
-  /** The provided cursor is not valid. The most common usage for this error is when a client is paginating through a list that uses stateful cursors. In that case, the provided cursor may be expired. HTTP Mapping: 404 Not Found Error Type: NOT_FOUND */
-  | 'INVALID_CURSOR'
-  /** Unable to perform operation because a required resource is missing. Example: Client is attempting to refresh a list, but the specified list is expired. This requires an action by the client to get a new list. If the user is simply trying GET a resource that is not found, use the NOT_FOUND error type. FAILED_PRECONDITION.MISSING_RESOURCE is to be used particularly when the user is performing an operation that requires a particular resource to exist. HTTP Mapping: 400 Bad Request or 500 Internal Server Error Error Type: FAILED_PRECONDITION */
-  | 'MISSING_RESOURCE'
-  /** Service Error. There is a problem with an upstream service. This may be returned if a gateway receives an unknown error from a service or if a service is unreachable. If a request times out which waiting on a response from a service, `DEADLINE_EXCEEDED` may be returned instead. If a service returns a more specific error Type, the specific error Type may be returned instead. HTTP Mapping: 502 Bad Gateway Error Type: UNAVAILABLE */
-  | 'SERVICE_ERROR'
-  /** Request failed due to network errors. HTTP Mapping: 503 Unavailable Error Type: UNAVAILABLE */
-  | 'TCP_FAILURE'
-  /** Request throttled based on server concurrency limits. HTTP Mapping: 503 Unavailable Error Type: UNAVAILABLE */
-  | 'THROTTLED_CONCURRENCY'
-  /** Request throttled based on server CPU limits HTTP Mapping: 503 Unavailable. Error Type: UNAVAILABLE */
-  | 'THROTTLED_CPU'
-  /** The server detected that the client is exhibiting a behavior that might be generating excessive load. HTTP Mapping: 429 Too Many Requests Error Type: UNAVAILABLE */
-  | 'TOO_MANY_REQUESTS'
-  /** The operation is not implemented or is not currently supported/enabled. HTTP Mapping: 501 Not Implemented Error Type: BAD_REQUEST */
-  | 'UNIMPLEMENTED'
-  /** Unknown error. This error should only be returned when no other error detail applies. If a client sees an unknown errorDetail, it will be interpreted as UNKNOWN. HTTP Mapping: 500 Internal Server Error */
-  | 'UNKNOWN';
+/** A CBP filing that groups house bills (HAWBs) under a master bill (MAWB), carrying the CBP entry number, clearance status, and CBP-assessed charges. */
+export type ZonosEntry = {
+  __typename?: 'Entry';
+  /** CBP-assessed antidumping/countervailing duties. */
+  assessedAdCvd: Maybe<Scalars['Decimal']>;
+  /** CBP-assessed total duty. */
+  assessedDuty: Maybe<Scalars['Decimal']>;
+  /** CBP-assessed fees (MPF + HMF). */
+  assessedFee: Maybe<Scalars['Decimal']>;
+  /** Merchandise processing fee — flat ($2.69) on Type 11, ad-valorem on Type 01. */
+  assessedMpf: Maybe<Scalars['Decimal']>;
+  /** Port processing fee assessed on this entry. */
+  assessedPortFee: Maybe<Scalars['Decimal']>;
+  /** CBP-assessed total tax (IR tax). */
+  assessedTax: Maybe<Scalars['Decimal']>;
+  /** Append-only timeline of CBP messages received for this entry — cargo release lifecycle, entry summary events, PGA status, error codes. */
+  cbpEvents: Array<ZonosEntryCbpEvent>;
+  /** Customer-facing status, derived from the filing lifecycle plus CBP/PGA disposition events — the single headline answer to "what's the binding state of this entry's clearance". Holds and rejections take precedence over release; BrokerageEntryClearanceStatus documents the full order. PGA-specific states are folded in here (PGA_HOLD/PGA_REVIEW/PGA_MAY_PROCEED); pgaAgencies tells you which agency they refer to. */
+  clearanceStatus: ZonosBrokerageEntryClearanceStatus;
+  /** The consignments grouped under this entry — house bill (trackingNumber), consignee, and line items (via federated items/landedCost). */
+  consignments: Array<ZonosConsignment>;
+  /** The consolidation this entry belongs to. Always present — entries are created under a consolidation by the filing workflow. */
+  consolidation: ZonosConsolidation;
+  createdAt: Scalars['DateTime'];
+  /** Date goods released (Block 7). */
+  entryDate: Maybe<Scalars['DateTime']>;
+  /** CBP-assigned entry number. */
+  entryNumber: Maybe<Scalars['String']>;
+  /** CBP entry type. */
+  entryType: ZonosBrokerageEntryType;
+  /** Folded notice for a CBP hold/exam or PGA hold/rejection, masked by CBP disposition cancellation. Lifecycle status is evaluated separately. */
+  holdNotice: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  /** Date the goods were imported into the US (Block 7a). Not yet populated — use `Consolidation.arrivalDate` for carrier arrival. */
+  importDate: Maybe<Scalars['DateTime']>;
+  /** Partner Government Agencies involved with this entry's goods, aggregated from its consignments — names which agency the PGA states in clearanceStatus refer to. Empty when no PGA applies. */
+  pgaAgencies: Array<ZonosBrokeragePgaAgency>;
+  /** Schedule D port code (Block 6). */
+  portOfEntryCode: Scalars['String'];
+  /** Total charges assessed by CBP — derived as duty + tax + fees + AD/CVD; null until CBP reports at least one component. */
+  totalAssessedCharges: Maybe<Scalars['Decimal']>;
+  updatedAt: Scalars['DateTime'];
+};
+
+/** A single CBP message received for an entry — lifecycle events (BILL ON FILE, RELEASED, etc.) and error or rejection codes. Ordered by `cbpDatetime` descending. */
+export type ZonosEntryCbpEvent = {
+  __typename?: 'EntryCbpEvent';
+  /** CBP disposition or error code (e.g., 98, 260, P00). Null for free-text status events. */
+  cbpCode: Maybe<Scalars['String']>;
+  /** Timestamp assigned by CBP, if present in the message. */
+  cbpDatetime: Maybe<Scalars['DateTime']>;
+  createdAt: Scalars['DateTime'];
+  /** Human-readable description of the event or error message. */
+  description: Scalars['String'];
+  id: Scalars['ID'];
+};
+
+export type ZonosEntryConnection = {
+  __typename?: 'EntryConnection';
+  edges: Array<ZonosEntryEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosEntryEdge = {
+  __typename?: 'EntryEdge';
+  cursor: Scalars['String'];
+  node: ZonosEntry;
+};
+
+/** Which TSCA import certification a chemical line files (19 CFR 12.121). */
+export type ZonosEpaCertification =
+  /** Not subject to TSCA: a food, drug, cosmetic, device, pesticide or tobacco product. */
+  | 'NEGATIVE'
+  /** Complies with all applicable TSCA rules or orders. */
+  | 'POSITIVE';
+
+/** Whether a TS1 line being disclaimed still contains composite wood panels that TSCA Title VI covers. */
+export type ZonosEpaCompositeWood = {
+  __typename?: 'EpaCompositeWood';
+  /** AI confidence score (0-1) in the composite-wood determination. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** True when the item is, or contains a part made of, hardwood plywood, particleboard, or MDF. */
+  contains: Maybe<Scalars['Boolean']>;
+};
+
+/** The disclaim inferred for an EPA program line (PG01 Disclaimer field). Filing it short-circuits the message set to OI + PG01. */
+export type ZonosEpaDisclaim = {
+  __typename?: 'EpaDisclaim';
+  /** The disclaim code to file (A = product not regulated by EPA). Set by inference only when confidently not-regulated. */
+  code: Maybe<ZonosEpaDisclaimCode>;
+  /** AI confidence score (0-1) that the item is not regulated by this program (i.e. that the disclaim is correct). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+};
+
+/** ACE PGA disclaim codes (PG01 Disclaimer field) — the reason agency data is not being transmitted. */
+export type ZonosEpaDisclaimCode =
+  /** Product is not regulated by this agency. */
+  | 'A'
+  /** Data is not required per agency guidance. */
+  | 'B'
+  /** Data filed through other agency means (e.g. a signed document image in DIS). */
+  | 'C'
+  /** Data filed on paper. */
+  | 'D';
+
+/** The inferred EPA Vehicles & Engines (VNE) entry form for a line — which EPA 3520 form the shipment files on. */
+export type ZonosEpaForm = {
+  __typename?: 'EpaForm';
+  /** The EPA V&E entry form this VNE line files on. */
+  code: Maybe<ZonosEpaFormType>;
+  /** AI confidence score (0-1) in the form determination. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+};
+
+/** EPA Vehicles & Engines entry form (the two EPA 3520 import forms). */
+export type ZonosEpaFormType =
+  /** Form 3520-1 — light-duty / on-road vehicles & engines. */
+  | 'FORM_3520_1'
+  /** Form 3520-21 — heavy-duty highway & nonroad engines/equipment. */
+  | 'FORM_3520_21';
+
+/** The EPA programs filed in the ACE PGA message set as Government Agency Program Codes. */
+export type ZonosEpaProgram =
+  /** Hydrofluorocarbons (AIM Act). */
+  | 'HFC'
+  /** Ozone-depleting substances (Clean Air Act Title VI). */
+  | 'ODS'
+  /** Registered pesticides (FIFRA). */
+  | 'PS1'
+  /** Pesticide devices (FIFRA). */
+  | 'PS2'
+  /** Pesticides, other (FIFRA). */
+  | 'PS3'
+  /** Toxic Substances Control Act — Section 13 chemical-import certification and Title VI composite wood. */
+  | 'TS1'
+  /** Vehicles and engines (Clean Air Act Title II). */
+  | 'VNE';
+
+/** A single EPA program's determination for an item — the basis of one PGA message set (PG01). */
+export type ZonosEpaProgramResult = {
+  __typename?: 'EpaProgramResult';
+  /** The TSCA section 13 certification a TS1 line files when it is not disclaimed; null on other programs and on a disclaimed line. */
+  certification: Maybe<ZonosEpaCertification>;
+  /** Whether this line still contains TSCA Title VI composite wood. Non-null only when programCode is TS1 and disclaim is set — an article is exempt from the section 13 certification only where no TSCA rule names it, and Title VI names composite wood, so a disclaimed TS1 line is asked this too. */
+  compositeWood: Maybe<ZonosEpaCompositeWood>;
+  /** Confidence (0-1) that this program applies to the item. 1.0 — applicability is deterministic from the seeded HS-code gate. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The disclaim inferred for this line. Non-null (code A) only when the apply is confident the item is NOT regulated by this program — the determination is inferred, not asked, because the filing audience (postal counter / consumer) can't make it. Null means file the message set (the safe default: regulated, unsure, inference unavailable, or a required even-flag line); the inference is biased toward null. */
+  disclaim: Maybe<ZonosEpaDisclaim>;
+  /** The inferred EPA Vehicles & Engines entry form for this line. Non-null only when programCode is VNE — the form the filer confirms on the form_type question. */
+  form: Maybe<ZonosEpaForm>;
+  /** The EPA program / ACE Government Agency Program Code this determination is for. */
+  programCode: ZonosEpaProgram;
+};
 
 export type ZonosErrorType =
   /** Bad Request. There is a problem with the request. Retrying the same request is not likely to succeed. An example would be a query or argument that cannot be deserialized. HTTP Mapping: 400 Bad Request */
@@ -5820,6 +8736,20 @@ export type ZonosExchangeRateLinkInput = {
 
 export type ZonosExchangeRateSource =
   | 'CBP'
+  /** European Central Bank rates (EUR base). Ingested via `exchangeRateSourceUpdate`. */
+  | 'ECB'
+  /** Czechia customs FX rate (CZK base). */
+  | 'EU_CUSTOMS_CZK'
+  /** Denmark customs FX rate (DKK base). */
+  | 'EU_CUSTOMS_DKK'
+  /** Hungary customs FX rate (HUF base). */
+  | 'EU_CUSTOMS_HUF'
+  /** Poland customs FX rate (PLN base). */
+  | 'EU_CUSTOMS_PLN'
+  /** Romania customs FX rate (RON base). */
+  | 'EU_CUSTOMS_RON'
+  /** Sweden customs FX rate (SEK base). */
+  | 'EU_CUSTOMS_SEK'
   | 'FIXER'
   | 'STATIC';
 
@@ -5844,6 +8774,212 @@ export type ZonosExchangeRateType =
 export type ZonosExpireCartType =
   | 'EXPIRED'
   | 'NOT_EXPIRED';
+
+export type ZonosExportClassification = {
+  __typename?: 'ExportClassification';
+  /** Ranked alternative export control codes with their probability mass. When binary display is in effect, controlled alternates are merged into a single "CONTROLLED" entry. */
+  alternates: Array<ZonosExportClassificationAlternate>;
+  /** The product brand provided on input. */
+  brand: Maybe<Scalars['String']>;
+  /** The category hierarchy provided on input. */
+  categories: Maybe<Array<Scalars['String']>>;
+  /** The inferred export control code (or the uncontrolled code). When binary display is in effect for this organization/call, this is the real uncontrolled code (e.g. "EAR99") or the generic sentinel "CONTROLLED" instead of the exact ECCN. */
+  classificationCode: Scalars['String'];
+  /** Human-readable description of the inferred export control code. Replaced with a generic sentence when binary display collapses this result to "CONTROLLED". */
+  classificationDescription: Maybe<Scalars['String']>;
+  /** Full control-list text for the inferred export control code. Always null when binary display collapses this result to "CONTROLLED". */
+  classificationFullText: Maybe<Scalars['String']>;
+  /** Probability mass of the top export control code (0-1). */
+  confidenceScore: Scalars['Decimal'];
+  /** When this resource was created. */
+  createdAt: Scalars['DateTime'];
+  /** The user who created this resource. */
+  createdBy: Scalars['ID'];
+  /** The description provided on input. */
+  description: Maybe<Scalars['String']>;
+  /** The export HS code used for the lookup. */
+  exportHsCode: Maybe<Scalars['String']>;
+  /** A unique identifier for the ExportClassification. */
+  id: Scalars['ID'];
+  /** The material provided on input. */
+  material: Maybe<Scalars['String']>;
+  /** The product name provided on input. */
+  name: Scalars['String'];
+  /** The `Organization` that owns this resource. */
+  organization: Scalars['ID'];
+  /** The product id provided on input. */
+  productId: Maybe<Scalars['String']>;
+  /** The source country provided on input. */
+  shipFromCountry: Maybe<ZonosCountryCode>;
+  /** When this resource was most recently updated. */
+  updatedAt: Scalars['DateTime'];
+  /** The user who most recently updated this resource. */
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosExportClassificationAlternate = {
+  __typename?: 'ExportClassificationAlternate';
+  /** The alternate export control code, or "CONTROLLED" when binary display has merged one or more controlled codes into this entry. */
+  classificationCode: Scalars['String'];
+  /** Human-readable description of the alternate export control code. */
+  classificationDescription: Maybe<Scalars['String']>;
+  /** Full control-list text for the alternate export control code. */
+  classificationFullText: Maybe<Scalars['String']>;
+  /** The probability mass associated with this alternate (0-1). When binary display has merged multiple controlled codes into this entry, this is their summed probability mass. */
+  probabilityMass: Scalars['Decimal'];
+};
+
+export type ZonosExportClassificationConnection = {
+  __typename?: 'ExportClassificationConnection';
+  edges: Array<ZonosExportClassificationEdge>;
+  pageInfo: Maybe<ZonosPageInfo>;
+  totalCount: Maybe<Scalars['Int']>;
+};
+
+export type ZonosExportClassificationEdge = {
+  __typename?: 'ExportClassificationEdge';
+  cursor: Maybe<Scalars['String']>;
+  node: Maybe<ZonosExportClassification>;
+};
+
+export type ZonosExportClassificationFilter = {
+  /** Filter by inferred export control code. */
+  classificationCode?: InputMaybe<Scalars['String']>;
+  /** Include results created after this date (inclusive). */
+  createdAtAfter?: InputMaybe<Scalars['DateTime']>;
+  /** Include results created before this date (inclusive). */
+  createdAtBefore?: InputMaybe<Scalars['DateTime']>;
+  /** Filter by product id. */
+  productId?: InputMaybe<Scalars['String']>;
+  /** Filter by ship-from country. */
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+/** --------------------------------------------------------------------------- Inference --------------------------------------------------------------------------- */
+export type ZonosExportClassificationInput = {
+  /** The product brand. */
+  brand?: InputMaybe<Scalars['String']>;
+  /** The category hierarchy associated with the item. */
+  categories?: InputMaybe<Array<Scalars['String']>>;
+  /** The full description associated with the item. */
+  description?: InputMaybe<Scalars['String']>;
+  /** Optional export (e.g. Schedule B) HS code. If omitted, it is computed via the classification path. */
+  exportHsCode?: InputMaybe<Scalars['String']>;
+  /** Base64-encoded product image (a bare base64 string or a full `data:image/...;base64,` URI). When provided, a generative description of the product is produced and used, alongside the other input fields, to drive classification. Not persisted or echoed on the output. */
+  image?: InputMaybe<Scalars['String']>;
+  /** The material composition of the item. */
+  material?: InputMaybe<Scalars['String']>;
+  /** The product name or short description. */
+  name: Scalars['String'];
+  /** A user-provided id to link to the result. */
+  productId?: InputMaybe<Scalars['String']>;
+  /** The source country; drives which export-code schedule and priors are used. */
+  shipFromCountry: ZonosCountryCode;
+};
+
+export type ZonosExportClassificationSetting = {
+  __typename?: 'ExportClassificationSetting';
+  /** When true, `exportClassificationsInfer` results collapse `classificationCode`/`classificationDescription`/`classificationFullText` to a binary "real uncontrolled code (e.g. EAR99)" vs "CONTROLLED" indicator instead of the exact ECCN. */
+  binaryDisplayEnabled: Scalars['Boolean'];
+  /** The minimum probability mass the uncontrolled code's own prediction must have to be trusted. If the uncontrolled code's probability falls below this value, the best controlled candidate is selected instead, regardless of that candidate's own probability. Null disables this override. */
+  confidenceThreshold: Maybe<Scalars['Decimal']>;
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  /** The unique identifier of the ExportClassificationSetting. */
+  id: Scalars['ID'];
+  /** The ID of the organization this setting applies to. */
+  organizationId: Scalars['ID'];
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosExportClassificationSettingCreateInput = {
+  /** Defaults to false (off) for backward compatibility. */
+  binaryDisplayEnabled?: InputMaybe<Scalars['Boolean']>;
+  /** Null (the default) disables promotion entirely. */
+  confidenceThreshold?: InputMaybe<Scalars['Decimal']>;
+};
+
+export type ZonosExportClassificationSettingOverrideInput = {
+  /** Overrides `ExportClassificationSetting.binaryDisplayEnabled` for this call only. Null falls back to the organization's configured setting (or false if none is configured). */
+  binaryDisplayEnabled?: InputMaybe<Scalars['Boolean']>;
+  /** Overrides `ExportClassificationSetting.confidenceThreshold` for this call only. Null falls back to the organization's configured setting (or disabled/no promotion if none is configured). */
+  confidenceThreshold?: InputMaybe<Scalars['Decimal']>;
+};
+
+export type ZonosExportClassificationSettingUpdateInput = {
+  /** Omit to leave the current value unchanged. */
+  binaryDisplayEnabled?: InputMaybe<Scalars['Boolean']>;
+  /** Omit to leave the current value unchanged. */
+  confidenceThreshold?: InputMaybe<Scalars['Decimal']>;
+};
+
+/** --------------------------------------------------------------------------- Reference data: ExportControlDescription --------------------------------------------------------------------------- */
+export type ZonosExportControlDescription = {
+  __typename?: 'ExportControlDescription';
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  /** Short human-readable description of the export control code. */
+  description: Maybe<Scalars['String']>;
+  /** The export control code (or the default uncontrolled code). */
+  exportControlCode: Scalars['String'];
+  /** Full control-list text for the export control code. */
+  fullText: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosExportControlDescriptionConnection = {
+  __typename?: 'ExportControlDescriptionConnection';
+  edges: Array<ZonosExportControlDescriptionEdge>;
+  pageInfo: Maybe<ZonosPageInfo>;
+  totalCount: Maybe<Scalars['Int']>;
+};
+
+export type ZonosExportControlDescriptionCreateInput = {
+  description?: InputMaybe<Scalars['String']>;
+  exportControlCode: Scalars['String'];
+  fullText?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosExportControlDescriptionEdge = {
+  __typename?: 'ExportControlDescriptionEdge';
+  cursor: Maybe<Scalars['String']>;
+  node: Maybe<ZonosExportControlDescription>;
+};
+
+export type ZonosExportControlDescriptionUpdateInput = {
+  description?: InputMaybe<Scalars['String']>;
+  exportControlCode?: InputMaybe<Scalars['String']>;
+  fullText?: InputMaybe<Scalars['String']>;
+  id: Scalars['ID'];
+};
+
+/** --------------------------------------------------------------------------- Reference data: ExportControlUncontrolledCode --------------------------------------------------------------------------- */
+export type ZonosExportControlUncontrolledCode = {
+  __typename?: 'ExportControlUncontrolledCode';
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  /** The export control code treated as "uncontrolled" for this ship-from country (e.g. "EAR99"). */
+  exportControlCode: Scalars['String'];
+  id: Scalars['ID'];
+  /** The ship-from country this override applies to. A country with no rows falls back to treating "EAR99" as its sole uncontrolled code. */
+  shipFromCountry: ZonosCountryCode;
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosExportControlUncontrolledCodeCreateInput = {
+  exportControlCode: Scalars['String'];
+  shipFromCountry: ZonosCountryCode;
+};
+
+export type ZonosExportControlUncontrolledCodeUpdateInput = {
+  exportControlCode?: InputMaybe<Scalars['String']>;
+  id: Scalars['ID'];
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+};
 
 export type ZonosExportJob = {
   __typename?: 'ExportJob';
@@ -5900,6 +9036,63 @@ export type ZonosExportJobsFilter = {
   status?: InputMaybe<ZonosExportJobStatus>;
 };
 
+/** --------------------------------------------------------------------------- Reference data: ExportPrior --------------------------------------------------------------------------- */
+export type ZonosExportPrior = {
+  __typename?: 'ExportPrior';
+  /** Historical frequency count for this code pairing. */
+  count: Maybe<Scalars['Int']>;
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  /** The export (e.g. Schedule B) code, at its native granularity. */
+  exportCode: Scalars['String'];
+  /** The export control code (or the default uncontrolled code). */
+  exportControlCode: Scalars['String'];
+  id: Scalars['ID'];
+  /** The share of this export control code within the export code (0-1). */
+  percent: Maybe<Scalars['Decimal']>;
+  /** The ship-from country this prior applies to. */
+  shipFromCountry: ZonosCountryCode;
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosExportPriorConnection = {
+  __typename?: 'ExportPriorConnection';
+  edges: Array<ZonosExportPriorEdge>;
+  pageInfo: Maybe<ZonosPageInfo>;
+  totalCount: Maybe<Scalars['Int']>;
+};
+
+export type ZonosExportPriorCreateInput = {
+  count?: InputMaybe<Scalars['Int']>;
+  exportCode: Scalars['String'];
+  exportControlCode: Scalars['String'];
+  percent?: InputMaybe<Scalars['Decimal']>;
+  shipFromCountry: ZonosCountryCode;
+};
+
+export type ZonosExportPriorEdge = {
+  __typename?: 'ExportPriorEdge';
+  cursor: Maybe<Scalars['String']>;
+  node: Maybe<ZonosExportPrior>;
+};
+
+export type ZonosExportPriorFilter = {
+  /** Prefix match against the export code. */
+  exportCode?: InputMaybe<Scalars['String']>;
+  exportControlCode?: InputMaybe<Scalars['String']>;
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+export type ZonosExportPriorUpdateInput = {
+  count?: InputMaybe<Scalars['Int']>;
+  exportCode?: InputMaybe<Scalars['String']>;
+  exportControlCode?: InputMaybe<Scalars['String']>;
+  id: Scalars['ID'];
+  percent?: InputMaybe<Scalars['Decimal']>;
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+};
+
 /** Determines whether an external payment method is enabled or not */
 export type ZonosExternalPaymentMethodStatus =
   | 'DISABLED'
@@ -5921,6 +9114,8 @@ export type ZonosExtractedItem = {
   quantity: Scalars['Int'];
   /** The value estimation for the item */
   valueEstimation: Maybe<ZonosValueEstimation>;
+  /** The weight estimation for the item */
+  weightEstimation: Maybe<ZonosWeightEstimation>;
 };
 
 /** Content extracted from the image by AI */
@@ -5933,6 +9128,149 @@ export type ZonosExtractedItemContent = {
   name: Scalars['String'];
   quantity: Scalars['Int'];
 };
+
+/** A single soft error recorded during document extraction. */
+export type ZonosExtractionError = {
+  __typename?: 'ExtractionError';
+  /** Error code (e.g. extract_1002). */
+  code: Scalars['String'];
+  /** Optional field path the error applies to. */
+  field: Maybe<Scalars['String']>;
+  /** Human-readable error message. */
+  message: Scalars['String'];
+};
+
+/** What triggers an FDA Affirmation of Compliance, and where it is sourced when assembling a PGA message set. */
+export type ZonosFdaAffirmationCategory =
+  /** Tied to a supply-chain party (entity role); provided when that party is in the filing. */
+  | 'ENTITY'
+  /** Determined by product classification: product code -> program/processingCode + IUC. */
+  | 'PRODUCT'
+  /** Tied to the shipment (mode of transport, carrier); provided when that info is present. */
+  | 'TRANSPORT';
+
+/** FDA Affirmation of Compliance. */
+export type ZonosFdaAffirmationOfCompliance = {
+  __typename?: 'FdaAffirmationOfCompliance';
+  /** Mutually exclusive alternatives to this affirmation (e.g., FME as alternate to PFR). */
+  alternates: Maybe<Array<ZonosFdaAffirmationOfCompliance>>;
+  /** What triggers this affirmation and where it comes from during message-set assembly. */
+  category: Maybe<ZonosFdaAffirmationCategory>;
+  /** 3-letter code (e.g., PFR, FME, BLN) for PG14 in ACE filing. */
+  code: Scalars['String'];
+  /** Condition describing when this AoC is required. Null if always required. */
+  condition: Maybe<Scalars['String']>;
+  /** AI confidence score (0-1) for this determination. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Full name of the affirmation. */
+  name: Scalars['String'];
+  /** Qualifier details for PG15 in ACE filing. Null if no qualifier needed (indicator-only AoC). */
+  qualifier: Maybe<ZonosFdaAffirmationQualifier>;
+};
+
+/** A single option for a multiple-choice FDA Affirmation qualifier. */
+export type ZonosFdaAffirmationOption = {
+  __typename?: 'FdaAffirmationOption';
+  /** Description of what this option means and when to use it. */
+  description: Maybe<Scalars['String']>;
+  /** Short human-readable label for display. */
+  label: Scalars['String'];
+  /** The value to submit for this option (e.g., 'A', 'H'). */
+  value: Scalars['String'];
+};
+
+/** Qualifier requirements for an FDA Affirmation of Compliance. */
+export type ZonosFdaAffirmationQualifier = {
+  __typename?: 'FdaAffirmationQualifier';
+  /** Description of what qualifier value should be provided. */
+  description: Maybe<Scalars['String']>;
+  /** Format hint for free-form values (e.g., '11 digits'). Null if options provided. */
+  format: Maybe<Scalars['String']>;
+  /** Valid options for multiple-choice qualifiers. If provided, user must select from this list. */
+  options: Maybe<Array<ZonosFdaAffirmationOption>>;
+  /** AI-inferred value for PG15. For multiple-choice, this is the recommended option. Clients can confirm or override. */
+  value: Maybe<Scalars['String']>;
+};
+
+/** Per-request mode for whether the builder collapses an industry's non-differentiable levels. */
+export type ZonosFdaCollapseMode =
+  | 'DISABLED'
+  | 'ENABLED';
+
+/** FDA Intended Use Code indicating the import scenario. */
+export type ZonosFdaIntendedUse = {
+  __typename?: 'FdaIntendedUse';
+  /** IUC code (e.g., 210.000, 260.000, 080.012). */
+  code: Scalars['String'];
+  /** AI confidence score (0-1) for this determination. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable description of the intended use (e.g., Personal Use, Research Use). */
+  description: Maybe<Scalars['String']>;
+};
+
+/** FDA-specific input data for regulation apply. */
+export type ZonosFdaItemInput = {
+  /** FDA Product Code (7-character, e.g., '20AKF01'). If provided, skips AI product code classification. */
+  productCode?: InputMaybe<Scalars['String']>;
+};
+
+/** FDA Product Code (7-character code identifying product type). */
+export type ZonosFdaProductCode = {
+  __typename?: 'FdaProductCode';
+  /** Top full-code alternatives the classifier considered, in probability order (selected code first). */
+  alternates: Maybe<Array<ZonosFdaProductCodeAlternate>>;
+  /** Full 7-character product code. */
+  code: Scalars['String'];
+  /** AI confidence score (0-1) for this product code determination. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Breakdown of the product code into its hierarchical components. */
+  fragments: Maybe<Array<ZonosFdaProductCodeFragment>>;
+};
+
+/** A ranked full-code alternative the FDA product-code classifier considered but did not select, in probability order. */
+export type ZonosFdaProductCodeAlternate = {
+  __typename?: 'FdaProductCodeAlternate';
+  /** The alternative's full 7-character product code. */
+  code: Scalars['String'];
+  /** AI confidence score (0-1) for this alternative. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Breakdown of this alternative into its hierarchical components, so it can be described in its own right rather than borrowing the selected code's. Carries no per-level confidence: the classifier scores whole codes, not levels. */
+  fragments: Maybe<Array<ZonosFdaProductCodeFragment>>;
+  /** Human-readable label for this alternative: the leaf product-group name. */
+  label: Maybe<Scalars['String']>;
+};
+
+/** A fragment of an FDA product code representing one level of the hierarchy. */
+export type ZonosFdaProductCodeFragment = {
+  __typename?: 'FdaProductCodeFragment';
+  /** The code value for this fragment (e.g., '20', 'A', 'K'). */
+  code: Scalars['String'];
+  /** AI confidence score (0-1) for this fragment's level selection. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable description of this code (e.g., 'Fruit/Fruit Products'). */
+  description: Maybe<Scalars['String']>;
+  /** The type of fragment indicating which level of the hierarchy this represents. */
+  type: ZonosFdaProductCodeFragmentType;
+};
+
+/** The hierarchical level of an FDA product code fragment. */
+export type ZonosFdaProductCodeFragmentType =
+  /** 3rd character: Product class within the industry. */
+  | 'CLASS'
+  /** 1st-2nd characters: Broad product category (e.g., 20 = Fruit/Fruit Products). */
+  | 'INDUSTRY'
+  /** 6th-7th characters: Specific product within the PIC. */
+  | 'PRODUCT'
+  /** 5th character: Product Indicator Code - how the product was processed. */
+  | 'PRODUCT_INDICATOR_CODE'
+  /** 4th character: Further subdivision within the class. */
+  | 'SUBCLASS';
+
+/** A collapsible level of the FDA product code (the positions that may be non-differentiable within an industry). */
+export type ZonosFdaProductCodeLevel =
+  | 'CLASS'
+  | 'PIC'
+  | 'SUBCLASS';
 
 /** Represents a fee amount on a `LandedCost` quote */
 export type ZonosFee = {
@@ -6069,11 +9407,253 @@ export type ZonosFulfillmentItem = {
   quantity: Scalars['Int'];
 };
 
+/** CITES Appendix an FWS line's taxon is listed under. */
+export type ZonosFwsCitesAppendix =
+  /** CITES Appendix I — species threatened with extinction; trade permitted only in exceptional circumstances. */
+  | 'I'
+  /** CITES Appendix II — species not necessarily threatened, but trade must be controlled. */
+  | 'II'
+  /** CITES Appendix III — species protected in at least one country that has asked others for trade help. */
+  | 'III'
+  /** Not listed in any CITES Appendix. */
+  | 'NONE';
+
+/** Country where an FWS line's wildlife originated. Echoed from input, or inferred from the item. */
+export type ZonosFwsCountryOfOrigin = {
+  __typename?: 'FwsCountryOfOrigin';
+  /** Confidence (0-1). 1.0 when supplied by the filer; the inference confidence when derived. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** The country of origin (ISO 2-char). */
+  countryCode: Maybe<ZonosCountryCode>;
+};
+
+/** FWS disclaim certification — the item is on an FWS-flagged HTS but contains no regulated fish or wildlife. Inferred (or echoed from a filer-supplied disclaim at full confidence). */
+export type ZonosFwsDisclaim = {
+  __typename?: 'FwsDisclaim';
+  /** The disclaim code. */
+  code: ZonosFwsDisclaimCode;
+  /** Confidence (0-1). 1.0 when supplied by the filer; otherwise the inference confidence. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+};
+
+/** FWS disclaim code certifying why the item is not subject to a wildlife declaration. */
+export type ZonosFwsDisclaimCode =
+  /** Wildlife is present but the entry is exempt from / not subject to the declaration requirement. */
+  | 'EXEMPT'
+  /** The article contains no fish or wildlife regulated by the FWS (synthetic/imitation, or a non-regulated species). */
+  | 'NO_WILDLIFE';
+
+/** Intended use of an FWS importation, which drives the CITES purpose code. Derived from the item's intended use, or AI-inferred. */
+export type ZonosFwsIntendedUse = {
+  __typename?: 'FwsIntendedUse';
+  /** The intended-use code. */
+  code: Maybe<Scalars['String']>;
+  /** Confidence (0-1). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable label for the code. */
+  description: Maybe<Scalars['String']>;
+};
+
+/** FWS-specific input data for regulation apply (Fish & Wildlife Service, Form 3-177). */
+export type ZonosFwsItemInput = {
+  /** A filer-supplied disclaim code. When valid, overrides the inferred disclaim at full confidence. */
+  disclaimCode?: InputMaybe<ZonosFwsDisclaimCode>;
+  /** The wildlife declaration lines of the item. Each carries the genus/species, product form, source, purpose, country of origin, quantity, and value the filer knows; omitted fields are inferred. */
+  lines?: InputMaybe<Array<ZonosFwsLineInput>>;
+};
+
+/** Whether an FWS line is the whole imported article or a component of a larger article. */
+export type ZonosFwsItemType =
+  /** The wildlife material is one component of a larger article (e.g. a python-leather watch strap). */
+  | 'COMPONENT'
+  /** The entire imported article is the wildlife product (e.g. a mounted trophy). */
+  | 'PRODUCT';
+
+/** A single wildlife line of an FWS Form 3-177 declaration: an organism, its product form, source, purpose, origin, quantity, and value. */
+export type ZonosFwsLine = {
+  __typename?: 'FwsLine';
+  /** CITES Appendix the line's taxon is listed under (looked up from the listing backbone, including whole-genus/family/order listings); NONE when not CITES-listed. */
+  citesAppendix: Maybe<ZonosFwsCitesAppendix>;
+  /** Country where the wildlife originated (taken from the wild or bred). Echoed from input, or inferred. */
+  countryOfOrigin: Maybe<ZonosFwsCountryOfOrigin>;
+  /** Name/description of the line. Echoed from input, or inferred when omitted. */
+  name: Maybe<Scalars['String']>;
+  /** CITES purpose-of-transaction code. Derived from the intended use when not supplied. */
+  purposeCode: Maybe<ZonosFwsPurposeCode>;
+  /** Quantity of wildlife material. */
+  quantity: Maybe<Scalars['Decimal']>;
+  /** CITES source code. Echoed from input, or inferred (defaults to U — unknown — when the species can't be resolved). */
+  sourceCode: Maybe<ZonosFwsSourceCode>;
+  /** The animal taxon for this line (genus/species) — echoed from input or AI-inferred, then validated against the taxonomy backbone. */
+  taxon: Maybe<ZonosFwsTaxon>;
+  /** Whether this entry is the whole imported article or a component of a larger article. */
+  type: Maybe<ZonosFwsItemType>;
+  /** Unit of measure for the quantity (FWS set; NO = count of specimens). */
+  unitOfMeasure: Maybe<ZonosFwsUnitOfMeasure>;
+  /** Value of the wildlife material for this line. Echoed from input, or estimated. */
+  value: Maybe<ZonosFwsValue>;
+  /** Live-venomous indicator (FWS PG17). Echoed from input; defaults to false (no other code is sent unless the live wildlife is venomous). */
+  venomous: Maybe<Scalars['Boolean']>;
+  /** The wildlife product form (CITES trade-term description code, e.g. LIV/SKI/GAR). Echoed from input, or inferred. */
+  wildlifeDescription: Maybe<ZonosFwsWildlifeDescription>;
+};
+
+/** A single wildlife line the filer declares for an FWS item. */
+export type ZonosFwsLineInput = {
+  /** Specific common (vernacular) name. If omitted, looked up from the taxonomy backbone for the resolved species. */
+  commonName?: InputMaybe<Scalars['String']>;
+  /** Country of origin (ISO 2-char) — where the wildlife was taken from the wild or bred. If omitted, inferred. */
+  countryOfOrigin?: InputMaybe<ZonosCountryCode>;
+  /** Scientific genus name. If omitted (along with species), inferred from the item and validated against the taxonomy backbone. */
+  genus?: InputMaybe<Scalars['String']>;
+  /** Name/description of the line. If omitted, inferred from the item. */
+  name?: InputMaybe<Scalars['String']>;
+  /** CITES purpose-of-transaction code. If omitted, derived from the intended use. */
+  purposeCode?: InputMaybe<ZonosFwsPurposeCode>;
+  /** Quantity of wildlife material. */
+  quantity?: InputMaybe<Scalars['Decimal']>;
+  /** CITES source code. If omitted, inferred (defaults to U — unknown — when the species can't be resolved). */
+  sourceCode?: InputMaybe<ZonosFwsSourceCode>;
+  /** Scientific species name. If omitted (along with genus), inferred from the item and validated against the taxonomy backbone. */
+  species?: InputMaybe<Scalars['String']>;
+  /** Whether this entry is the whole imported article or a component of a larger article. */
+  type?: InputMaybe<ZonosFwsItemType>;
+  /** Unit of measure for the quantity (FWS set; NO = count). */
+  unitOfMeasure?: InputMaybe<ZonosFwsUnitOfMeasure>;
+  /** Value of the wildlife material for this line. If omitted, estimated via value inference. */
+  value?: InputMaybe<Scalars['Decimal']>;
+  /** Currency of `value`. Defaults to the estimation currency when value is inferred. */
+  valueCurrency?: InputMaybe<ZonosCurrencyCode>;
+  /** Live-venomous indicator (FWS PG17). Defaults to false; set true only for live venomous wildlife. */
+  venomous?: InputMaybe<Scalars['Boolean']>;
+  /** Wildlife description code (CITES trade-term product form, e.g. LIV, SKI, GAR). If omitted, inferred. */
+  wildlifeDescriptionCode?: InputMaybe<Scalars['String']>;
+};
+
+/** CITES purpose-of-transaction code. */
+export type ZonosFwsPurposeCode =
+  /** Breeding in captivity or artificial propagation. */
+  | 'B'
+  /** Educational. */
+  | 'E'
+  /** Botanical garden. */
+  | 'G'
+  /** Hunting trophy. */
+  | 'H'
+  /** Law enforcement / judicial / forensic. */
+  | 'L'
+  /** Medical (including biomedical research). */
+  | 'M'
+  /** Reintroduction or introduction into the wild. */
+  | 'N'
+  /** Personal. */
+  | 'P'
+  /** Circus or travelling exhibition. */
+  | 'Q'
+  /** Scientific. */
+  | 'S'
+  /** Commercial. */
+  | 'T'
+  /** Zoo. */
+  | 'Z';
+
+/** CITES source code — how the specimen was produced/obtained (50 CFR 23). */
+export type ZonosFwsSourceCode =
+  /** Plants artificially propagated. */
+  | 'A'
+  /** Bred in captivity. */
+  | 'C'
+  /** Appendix-I specimens bred in captivity / artificially propagated for commercial purposes. */
+  | 'D'
+  /** Born in captivity (F1 or subsequent) but not meeting the definition of bred in captivity. */
+  | 'F'
+  /** Confiscated or seized specimens. */
+  | 'I'
+  /** Pre-Convention specimens. */
+  | 'O'
+  /** Ranched specimens. */
+  | 'R'
+  /** Source unknown (used as the default when the species cannot be resolved). */
+  | 'U'
+  /** Taken from the wild. */
+  | 'W'
+  /** Taken in the marine environment not under the jurisdiction of any state. */
+  | 'X';
+
+/** The animal taxon (genus/species/common name) for an FWS line — echoed from input or AI-inferred, then validated against the taxonomy backbone (Animalia). */
+export type ZonosFwsTaxon = {
+  __typename?: 'FwsTaxon';
+  /** Specific common (vernacular) name (FWS PG17), looked up from the taxonomy backbone or echoed from input; null when none is known. */
+  commonName: Maybe<Scalars['String']>;
+  /** Confidence (0-1). 1.0 when filer-supplied and confirmed in the backbone; otherwise the model's confidence. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Scientific genus name. */
+  genus: Maybe<Scalars['String']>;
+  /** Scientific species name. */
+  species: Maybe<Scalars['String']>;
+};
+
+/** Unit of measure permitted on an FWS declaration quantity (count and metric). */
+export type ZonosFwsUnitOfMeasure =
+  /** Centimeters. */
+  | 'CM'
+  /** Grams. */
+  | 'G'
+  /** Kilograms. */
+  | 'KG'
+  /** Liters. */
+  | 'L'
+  /** Meters. */
+  | 'M'
+  /** Square meters. */
+  | 'M2'
+  /** Cubic meters. */
+  | 'M3'
+  /** Milliliters. */
+  | 'ML'
+  /** Number / count of specimens. */
+  | 'NO';
+
+/** Value of an FWS line's wildlife material. Echoed from input, or estimated when omitted. */
+export type ZonosFwsValue = {
+  __typename?: 'FwsValue';
+  /** The monetary amount. */
+  amount: Maybe<Scalars['Decimal']>;
+  /** Confidence (0-1). 1.0 when supplied by the filer; null when estimated (the value-estimation service returns no confidence score). */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Currency of the amount. */
+  currency: Maybe<ZonosCurrencyCode>;
+};
+
+/** The wildlife product form for an FWS line — a CITES trade-term description code (e.g. LIV live, SKI skins, GAR garments). Echoed from input, or inferred. */
+export type ZonosFwsWildlifeDescription = {
+  __typename?: 'FwsWildlifeDescription';
+  /** The CITES trade-term description code (e.g. "LIV", "SKI"). */
+  code: Maybe<Scalars['String']>;
+  /** Confidence (0-1). 1.0 when supplied by the filer; otherwise the model's confidence. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Human-readable label for the code. */
+  description: Maybe<Scalars['String']>;
+};
+
 export type ZonosGeneralCarrierAccountFilter = {
   /** The `CarrierAccountApiUsage` for the account */
   apiUsage?: InputMaybe<ZonosCarrierAccountApiUsage>;
   /** The `code` associated with the `Carrier` of the account */
   carrierCode?: InputMaybe<Scalars['String']>;
+};
+
+/** Government Agency Processing Code for PG01 (commodity subtype like NSF, PRO, PRE). */
+export type ZonosGovernmentAgencyProcessingCode = {
+  __typename?: 'GovernmentAgencyProcessingCode';
+  /** 3-letter processing code (e.g., NSF, PRO, PRE, NED). Null when the commodity has no processing code (e.g., cosmetics, where "No Processing Code applies" and only the program is filed). */
+  code: Maybe<Scalars['String']>;
+  /** AI confidence score (0-1) if AI was used to determine this code. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Filer-facing name of the processing code (e.g., "Fresh or raw food, not processed", "Processed food"). */
+  name: Maybe<Scalars['String']>;
+  /** Parent program code (e.g., FOO, DRU, DEV). Present for any non-disclaimed FDA line. */
+  programCode: Maybe<Scalars['String']>;
 };
 
 /** The aggregated compliance risk audit produced by `greenLightWorkflow`. */
@@ -6111,6 +9691,7 @@ export type ZonosGreenLightAppliedRegulation = {
 /** A check that the GreenLight workflow can run. */
 export type ZonosGreenLightCheck =
   | 'COUNTRY_OF_ORIGIN_VALIDATION'
+  | 'CUSTOMS_DESCRIPTION_VALIDATION'
   | 'DENIED_PARTY_SCREENING'
   | 'HS_CODE_COHERENCE'
   | 'REGULATION_CHECK'
@@ -6123,6 +9704,12 @@ export type ZonosGreenLightConnection = {
   pageInfo: ZonosPageInfo;
   totalCount: Scalars['Int'];
 };
+
+export type ZonosGreenLightCustomsDescriptionStatus =
+  | 'INCOMPLETE'
+  | 'READY'
+  | 'READY_TO_SUBHEADING'
+  | 'UNRECOGNIZABLE';
 
 export type ZonosGreenLightEdge = {
   __typename?: 'GreenLightEdge';
@@ -6139,16 +9726,35 @@ export type ZonosGreenLightFilter = {
 /** The set of sub-validations run against a single item. */
 export type ZonosGreenLightItemResult = {
   __typename?: 'GreenLightItemResult';
-  /** Per-agency regulation findings for this item (RestrictedItemDgs). */
+  /** Per-agency regulation findings for this item. */
   appliedRegulations: Array<ZonosGreenLightAppliedRegulation>;
-  /** Restricted-item findings for this item (RestrictedItemDgs). */
+  /** Restricted-item findings for this item. */
   appliedRestrictions: Maybe<ZonosAppliedRestrictions>;
-  /** HS-code classification for this item, including coherence check results on `hsCodeProvidedValidation` (ClassifyDgs). */
+  /** HS-code classification for this item, including coherence check results on `hsCodeProvidedValidation`. */
   classification: Maybe<ZonosClassification>;
+  /** Probability that the declared origin is wrong. Null when the check was skipped or returned no score. */
+  countryOfOriginMisrepresentationProbability: Maybe<Scalars['Decimal']>;
   /** Country-of-origin validation result for this item (CountryInferenceDgs). */
   countryOfOriginValidation: Maybe<ZonosCountryOfOriginValidation>;
+  /** Clarifications returned by customs-description validation. Null when the check was skipped or the audit predates it. */
+  customsDescriptionClarifications: Maybe<Array<Scalars['String']>>;
+  /** Customs-description result. Null when this check was skipped or the audit predates it. */
+  customsDescriptionStatus: Maybe<ZonosGreenLightCustomsDescriptionStatus>;
+  declaredAmount: Maybe<Scalars['Decimal']>;
+  declaredCountryOfOrigin: Maybe<ZonosCountryCode>;
+  declaredCurrency: Maybe<ZonosCurrencyCode>;
+  hsCoherenceOutcome: Maybe<ZonosHsCodeValidation>;
+  /** One minus the HS-code coherence score. Higher values mean greater risk. */
+  hsMiscoherenceProbability: Maybe<Scalars['Decimal']>;
   /** The item these results apply to. */
   item: ZonosItem;
+  /** Name captured when the item was checked. */
+  itemName: Maybe<Scalars['String']>;
+  suggestedCountryOfOrigin: Maybe<ZonosCountryCode>;
+  /** Probability of under-valuation for this item. Null when the check was skipped or returned no score. */
+  underValuationProbability: Maybe<Scalars['Decimal']>;
+  valueEstimateHigh: Maybe<Scalars['Decimal']>;
+  valueEstimateLow: Maybe<Scalars['Decimal']>;
   /** Value validation result for this item (ValueInferenceDgs). */
   valueValidation: Maybe<ZonosValueValidation>;
 };
@@ -6202,10 +9808,12 @@ export type ZonosGreenLightRestrictionCategory =
 
 /** Input for `greenLightWorkflow`. Every sub-validation defaults to enabled; set the corresponding toggle to `false` to skip it. */
 export type ZonosGreenLightWorkflowInput = {
-  /** Regulatory agencies to check (e.g. ["CPSC"]). Passed through to RestrictedItemDgs. Only applies when regulationCheck is true. */
+  /** Regulatory agencies to check (e.g. ["CPSC"]). Only applies when regulationCheck is true. */
   agencies?: InputMaybe<Array<Scalars['String']>>;
   /** Whether to run country-of-origin validation (countryOfOriginValidate). */
   countryOfOriginValidation: Scalars['Boolean'];
+  /** Whether to validate the customs description of each item. */
+  customsDescriptionValidation: Scalars['Boolean'];
   /** Whether to run denied-party screening (partyScreenExisting). */
   deniedPartyScreening: Scalars['Boolean'];
   /** Whether to run HS-code coherence check (classificationsCalculate with CHECK_COHERENCE). */
@@ -6228,6 +9836,7 @@ export type ZonosHandlingUnit = {
   /** Parent consignment. */
   consignment: ZonosConsignment;
   createdAt: Scalars['DateTime'];
+  /** Identifier of the user or service that created the record. */
   createdBy: Scalars['ID'];
   /** Unit of dimension measurement. */
   dimensionalUnit: Maybe<ZonosDimensionalUnitCode>;
@@ -6241,6 +9850,7 @@ export type ZonosHandlingUnit = {
   /** Package tracking number. */
   trackingNumber: Scalars['String'];
   updatedAt: Scalars['DateTime'];
+  /** Identifier of the user or service that last updated the record. */
   updatedBy: Scalars['ID'];
   /** Gross weight of the package. */
   weight: Scalars['Decimal'];
@@ -6268,6 +9878,53 @@ export type ZonosHandlingUnitInput = {
   weightUnit: ZonosWeightUnitCode;
   /** Package width. */
   width?: InputMaybe<Scalars['Decimal']>;
+};
+
+export type ZonosHazardousCommodity = {
+  __typename?: 'HazardousCommodity';
+  /** Cargo-aircraft-only flag for this commodity. */
+  cargoAircraftOnly: Maybe<Scalars['Boolean']>;
+  /** DOT/IATA hazard class (e.g., "3" for flammable liquids). */
+  hazardClass: Scalars['String'];
+  /** UN/NA/ID number including its prefix, exactly as the carrier expects it (e.g. "UN1090" for Acetone, "ID8000" for a consumer commodity). UPS requires the prefix as part of the entry and caps the field at 6 characters. Sent to carriers verbatim; the prefix is not inferred, since UN/NA/ID cannot be derived from the digits alone. */
+  id: Scalars['String'];
+  /** Packing group (I, II, or III). */
+  packingGroup: Maybe<ZonosPackingGroup>;
+  /** Packing instructions code. */
+  packingInstructions: Maybe<Scalars['String']>;
+  /** Proper shipping name of the commodity. */
+  properShippingName: Scalars['String'];
+  /** Quantity amount. */
+  quantityAmount: Scalars['Decimal'];
+  /** Quantity units (e.g., "L", "KG"). */
+  quantityUnits: Scalars['String'];
+  /** Sequence number when multiple commodities are declared. */
+  sequenceNumber: Maybe<Scalars['Int']>;
+  /** Technical (chemical) name(s) of the commodity, required for "n.o.s." (not-otherwise-specified) proper shipping names per 49CFR §172.203 — e.g. "Sodium hydroxide, Sodium metasilicate pentahydrate". Taken from the product's SDS; not derived. */
+  technicalName: Maybe<Scalars['String']>;
+};
+
+export type ZonosHazardousCommodityInput = {
+  /** Cargo-aircraft-only flag for this commodity. */
+  cargoAircraftOnly?: InputMaybe<Scalars['Boolean']>;
+  /** DOT/IATA hazard class (e.g., "3" for flammable liquids). */
+  hazardClass: Scalars['String'];
+  /** UN/NA/ID number including its prefix, exactly as the carrier expects it (e.g. "UN1090" for Acetone, "ID8000" for a consumer commodity). UPS requires the prefix as part of the entry and caps the field at 6 characters. Sent to carriers verbatim; the prefix is not inferred, since UN/NA/ID cannot be derived from the digits alone. */
+  id: Scalars['String'];
+  /** Packing group (I, II, or III). */
+  packingGroup?: InputMaybe<ZonosPackingGroup>;
+  /** Packing instructions code. */
+  packingInstructions?: InputMaybe<Scalars['String']>;
+  /** Proper shipping name of the commodity. */
+  properShippingName: Scalars['String'];
+  /** Quantity amount. */
+  quantityAmount: Scalars['Decimal'];
+  /** Quantity units (e.g., "L", "KG"). */
+  quantityUnits: Scalars['String'];
+  /** Sequence number when multiple commodities are declared. */
+  sequenceNumber?: InputMaybe<Scalars['Int']>;
+  /** Technical (chemical) name(s) of the commodity, required for "n.o.s." (not-otherwise-specified) proper shipping names per 49CFR §172.203 — e.g. "Sodium hydroxide, Sodium metasilicate pentahydrate". Taken from the product's SDS; not derived. */
+  technicalName?: InputMaybe<Scalars['String']>;
 };
 
 /** Determines which countries a Hello country display rule applies to. */
@@ -6349,6 +10006,24 @@ export type ZonosHelloPeekMessageBehavior =
   | 'DISABLED'
   | 'ENABLED';
 
+/** Fine-grained float position for the Hello widget relative to a viewport corner. */
+export type ZonosHelloPlacement = {
+  __typename?: 'HelloPlacement';
+  /** Corner the widget is anchored to. */
+  anchor: ZonosHelloDesktopLocation;
+  /** Distance in px from the anchored horizontal edge (left edge for *_LEFT, right edge for *_RIGHT). */
+  horizontalOffset: Scalars['Int'];
+  /** Distance in px from the anchored vertical edge (top edge for TOP_*, bottom edge for BOTTOM_*). */
+  verticalOffset: Scalars['Int'];
+};
+
+/** Input for setting or replacing a HelloPlacement override. */
+export type ZonosHelloPlacementInput = {
+  anchor: ZonosHelloDesktopLocation;
+  horizontalOffset: Scalars['Int'];
+  verticalOffset: Scalars['Int'];
+};
+
 /** Determines how Zonos Hello should handle restricted items. */
 export type ZonosHelloRestrictionBehavior =
   | 'DISABLED'
@@ -6381,6 +10056,8 @@ export type ZonosHelloSettings = {
   currencyElementSelector: Scalars['String'];
   /** Where Hello should display on desktop */
   desktopLocation: ZonosHelloDesktopLocation;
+  /** Fine-grained desktop float position; null means use desktopLocation only */
+  desktopLocationOverride: Maybe<ZonosHelloPlacement>;
   /** How Hello should handle on-the-fly duty/tax estimation */
   dutyTaxEstimationBehavior: ZonosHelloEstimateBehavior;
   /** Optional list of URL patterns to not display Hello on. Regex matching supported */
@@ -6391,6 +10068,8 @@ export type ZonosHelloSettings = {
   id: Scalars['ID'];
   /** Where Hello should display on mobile */
   mobileLocation: ZonosHelloMobileLocation;
+  /** Fine-grained mobile float position; null means use mobileLocation only */
+  mobileLocationOverride: Maybe<ZonosHelloPlacement>;
   /** Whether this HelloSettings is in live or test mode */
   mode: ZonosMode;
   /** The organization this HelloSettings belongs to */
@@ -6465,6 +10144,8 @@ export type ZonosHsCode = {
   majorVersion: ZonosWcoVersion;
   /** The country-specific version of the WCO core library. */
   minorVersion: Maybe<Scalars['String']>;
+  /** Component statistical-suffix codes for a US chapter-91 watch/clock 8-digit line (movement/case/strap/battery, etc.). Empty for every other code. */
+  supplementalHsCodes: Array<ZonosHsCode>;
 };
 
 /** HS-code coherence risk aggregated across items. */
@@ -6503,6 +10184,13 @@ export type ZonosHsCodeFragmentsFilter = {
   country?: InputMaybe<ZonosCountryCode>;
   /** The partial HS code to filter by. */
   partialCode: Scalars['String'];
+};
+
+export type ZonosHsCodeInput = {
+  /** The numerically formatted HS code. */
+  code: Scalars['String'];
+  /** The 2-digit ISO representation of a country. */
+  countryCode: ZonosCountryCode;
 };
 
 export type ZonosHsCodeProvidedTreatment =
@@ -6559,7 +10247,7 @@ export type ZonosHsCodeValidateInput = {
   hsCode: Scalars['String'];
 };
 
-/** HS-code validation outcome. Owned by ClassifyDgs. */
+/** HS-code validation outcome. */
 export type ZonosHsCodeValidation =
   /** HS code is valid and coherent. */
   | 'COHERENT'
@@ -6593,9 +10281,121 @@ export type ZonosImageExtractedUnmatchedItem = {
   id: Scalars['ID'];
 };
 
+/** An `InclusivePriceConfiguration` describes whether duty and/or tax are included in the price of items for a given ship-to country, and the combined rate applied when they are. */
+export type ZonosInclusivePriceConfiguration = {
+  __typename?: 'InclusivePriceConfiguration';
+  /** The time the configuration was archived, if applicable. */
+  archivedAt: Maybe<Scalars['DateTime']>;
+  /** The country whose VAT is already included in the merchant's base prices, if any. */
+  basePriceTaxCountry: Maybe<ZonosCountryCode>;
+  /** When the `InclusivePriceConfiguration` was created. */
+  createdAt: Scalars['DateTime'];
+  /** The user who created the `InclusivePriceConfiguration`. */
+  createdBy: Scalars['ID'];
+  /** The rate applied to the merchant's base price to get the shopper-facing price. Equal to `effectiveRate` when base prices are tax-exclusive. */
+  displayedRate: Maybe<Scalars['Decimal']>;
+  /** The duty portion of this configuration. */
+  dutyConfiguration: Maybe<ZonosInclusivePriceDutyConfiguration>;
+  /** The total inclusive rate applied to this configuration, combining all duty, tax, and fee components. */
+  effectiveRate: Scalars['Decimal'];
+  /** The ID of the `InclusivePriceConfiguration`. */
+  id: Scalars['ID'];
+  /** The organization ID associated with the `InclusivePriceConfiguration`. */
+  organizationId: Scalars['ID'];
+  /** The ship-to country this configuration applies to. */
+  shipToCountry: ZonosCountryCode;
+  /** The tax portion of this configuration. */
+  taxConfiguration: ZonosInclusivePriceTaxConfiguration;
+  /** When this `InclusivePriceConfiguration` was last updated. */
+  updatedAt: Scalars['DateTime'];
+  /** The user who last updated the `InclusivePriceConfiguration`. */
+  updatedBy: Scalars['ID'];
+};
+
+/** A paginated list of `InclusivePriceConfiguration` resources. */
+export type ZonosInclusivePriceConfigurationConnection = {
+  __typename?: 'InclusivePriceConfigurationConnection';
+  /** A list of InclusivePriceConfiguration edges. */
+  edges: Array<ZonosInclusivePriceConfigurationEdge>;
+  /** Information for pagination. */
+  pageInfo: Maybe<ZonosPageInfo>;
+  /** Total number of matching InclusivePriceConfigurations, when requested. */
+  totalCount: Maybe<Scalars['Int']>;
+};
+
+/** Input for creating an `InclusivePriceConfiguration`. */
+export type ZonosInclusivePriceConfigurationCreateInput = {
+  /** The country whose VAT is already included in the merchant's base prices. When syncing an existing configuration, omit to keep the current value or pass null to remove it. When creating, omit or pass null for none. */
+  basePriceTaxCountry?: InputMaybe<ZonosCountryCode>;
+  /** The configuration to apply to duty. */
+  dutyConfiguration?: InputMaybe<ZonosInclusivePriceDutyConfigurationInput>;
+  /** Country code for the InclusivePriceConfiguration. */
+  shipToCountry: ZonosCountryCode;
+  /** The configuration to apply to tax. */
+  taxConfiguration?: InputMaybe<ZonosInclusivePriceTaxConfigurationInput>;
+};
+
+/** An edge in a paginated list of `InclusivePriceConfiguration` resources. */
+export type ZonosInclusivePriceConfigurationEdge = {
+  __typename?: 'InclusivePriceConfigurationEdge';
+  /** Cursor for pagination. */
+  cursor: Scalars['String'];
+  /** The InclusivePriceConfiguration at the end of the edge. */
+  node: ZonosInclusivePriceConfiguration;
+};
+
+/** Filter criteria for listing `InclusivePriceConfiguration` resources. */
+export type ZonosInclusivePriceConfigurationFilter = {
+  /** Only return configurations for these ship-to countries. */
+  shipToCountries?: InputMaybe<Array<ZonosCountryCode>>;
+};
+
+/** Whether the price configuration is enabled or disabled. */
+export type ZonosInclusivePriceConfigurationStatus =
+  | 'DISABLED'
+  | 'ENABLED';
+
+/** Input for updating an existing `InclusivePriceConfiguration`. */
+export type ZonosInclusivePriceConfigurationUpdateInput = {
+  /** The country whose VAT is already included in the merchant's base prices. Omit to keep the current value, or pass null to remove it. */
+  basePriceTaxCountry?: InputMaybe<ZonosCountryCode>;
+  /** The configuration to apply to duty. */
+  dutyConfiguration?: InputMaybe<ZonosInclusivePriceDutyConfigurationInput>;
+  /** The id of the `InclusivePriceConfiguration` to update */
+  id: Scalars['ID'];
+  /** The configuration to apply to tax. */
+  taxConfiguration?: InputMaybe<ZonosInclusivePriceTaxConfigurationInput>;
+};
+
+/** The duty portion of an `InclusivePriceConfiguration`. */
+export type ZonosInclusivePriceDutyConfiguration = {
+  __typename?: 'InclusivePriceDutyConfiguration';
+  /** Whether duty is included in the inclusive price for this configuration. */
+  status: ZonosInclusivePriceConfigurationStatus;
+};
+
+/** The input for the `InclusivePriceDutyConfiguration`. */
+export type ZonosInclusivePriceDutyConfigurationInput = {
+  /** Whether duty should be included in the inclusive price. */
+  status: ZonosInclusivePriceConfigurationStatus;
+};
+
 export type ZonosInclusivePriceStatus =
   | 'ACTIVE'
   | 'INACTIVE';
+
+/** The tax portion of an `InclusivePriceConfiguration`. */
+export type ZonosInclusivePriceTaxConfiguration = {
+  __typename?: 'InclusivePriceTaxConfiguration';
+  /** Whether tax is included in the inclusive price for this configuration. */
+  status: ZonosInclusivePriceConfigurationStatus;
+};
+
+/** The input for the `InclusivePriceTaxConfiguration`. */
+export type ZonosInclusivePriceTaxConfigurationInput = {
+  /** Whether tax should be included in the inclusive price. */
+  status: ZonosInclusivePriceConfigurationStatus;
+};
 
 /** International Commercial Terms */
 export type ZonosIncotermCode =
@@ -6627,6 +10427,17 @@ export type ZonosIntegrationStatus =
 export type ZonosIntendedAudience =
   | 'ADULT'
   | 'CHILD';
+
+/** Intended use of imported goods. Used by both CPSC and FDA to determine applicable regulations. */
+export type ZonosIntendedUseType =
+  /** Commercial/industrial use - products for business, manufacturing, or industrial purposes. Not for direct consumer sale. */
+  | 'COMMERCIAL'
+  /** Consumer use - general consumer products sold through normal retail/commercial channels. */
+  | 'CONSUMER'
+  /** Personal use - individual importing for personal consumption, gifts, or household use. Not for resale. */
+  | 'PERSONAL'
+  /** Research use - products for laboratory research, testing, scientific study, or clinical trials. */
+  | 'RESEARCH';
 
 export type ZonosInvoiceCarrier =
   | 'DHL'
@@ -6738,7 +10549,7 @@ export type ZonosInvoiceStatus =
   | 'RECONCILED'
   | 'VOIDED';
 
-/** Federated entity stubs and foreign enums redeclared for local use. Entities resolve at runtime via Apollo Router; enum values MUST match the owning service (do not drift). */
+/** An `Item` represents the input for a shopping cart `Item` to be quoted for Landed Cost, Shipment Rating, etc. `Item` is not intended to be stored and used long-term for things like the catalog; it is purely a method for moving data around. */
 export type ZonosItem = {
   __typename?: 'Item';
   /** Advertised or marketing description of the `Item`, distinct from the customs or internal description. */
@@ -6776,7 +10587,7 @@ export type ZonosItem = {
   dutyTaxFeeConfiguration: Maybe<ZonosDutyTaxFeeConfiguration>;
   /** Global Trade Item Number for the `Item`. */
   gtin: Maybe<Scalars['String']>;
-  /** Item HS code. Owned by ItemDgs; pulled in via @requires for compliance lookup. */
+  /** HS code for this `Item`. */
   hsCode: Maybe<Scalars['String']>;
   /** Indicates where the HS code for this `Item` was acquired. */
   hsCodeSource: Maybe<ZonosItemValueSource>;
@@ -6788,6 +10599,7 @@ export type ZonosItem = {
   itemType: Maybe<ZonosItemType>;
   /** The manufacturer `Party` of this `Item`. */
   manufacturerParty: Maybe<ZonosParty>;
+  manufacturerProductId: Maybe<Scalars['String']>;
   /** Marketplace where this `Item` is sold. */
   marketplace: Maybe<ZonosItemMarketplace>;
   /** List of `Item` weights and dimensions. */
@@ -6800,14 +10612,25 @@ export type ZonosItem = {
   name: Maybe<Scalars['String']>;
   /** The unique identifier associated with an organization. */
   organization: Scalars['ID'];
-  /** The box in a kit this item is assigned to */
+  /**
+   * The box in a bundle this item is assigned to
+   * @deprecated Use packingConfiguration.packageOptionId
+   */
   packageOptionId: Maybe<Scalars['ID']>;
-  /** Index identifying the specific package option instance within a kit (e.g. packageOptionId + instance index) */
+  /**
+   * Index identifying the specific package option instance within a bundle (e.g. packageOptionId + instance index)
+   * @deprecated Use packingConfiguration.packageOptionIdIndex
+   */
   packageOptionIdIndex: Maybe<Scalars['String']>;
   /** The stacking configuration associated with this `Item` */
   packingConfiguration: Maybe<ZonosPackingConfiguration>;
-  /** The packing options of the item */
+  /**
+   * The packing options of the item
+   * @deprecated Use packingConfiguration.packingPreference
+   */
   packingPreference: Maybe<ZonosPackingPreference>;
+  /** The id of this Item's parent Item, if this Item is itself a subItem. Null if this Item is not a subItem of another Item. */
+  parentItemId: Maybe<Scalars['ID']>;
   /**
    * The product ID of the parent `Item` for multi-SKU situations.
    * @deprecated No longer supported
@@ -6831,6 +10654,8 @@ export type ZonosItem = {
   securityScreeningReportNumber: Maybe<Scalars['String']>;
   /** SKU of this Item. */
   sku: Maybe<Scalars['String']>;
+  /** Component sub-items of this `Item` (e.g. a watch's band, movement, case, battery), one level deep. Empty if this `Item` has no components. */
+  subItems: Array<ZonosItem>;
   /** When this `Item` was most recently updated. */
   updatedAt: Scalars['DateTime'];
   /** User who most recently updated this `Item`. */
@@ -6861,6 +10686,8 @@ export type ZonosItemAmountTargetType =
 export type ZonosItemAttribute = {
   __typename?: 'ItemAttribute';
   key: Maybe<Scalars['String']>;
+  /** source of the attribute */
+  source: Maybe<ZonosItemAttributeSource>;
   value: Maybe<Scalars['String']>;
 };
 
@@ -6871,10 +10698,21 @@ export type ZonosItemAttributeInput = {
   value?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosItemAttributeSource =
+  | 'CATALOG'
+  | 'CATALOG_VERIFIED'
+  | 'CHECKOUT_VERIFIED'
+  | 'USER_PROVIDED';
+
 export type ZonosItemAttributes = {
   __typename?: 'ItemAttributes';
   /** Target audience for the product (ADULT or CHILD). */
   audience: Maybe<ZonosItemIntendedAudience>;
+};
+
+export type ZonosItemAttributesInput = {
+  /** Target audience for the product. Determines CPC (children) vs GCC (adult) certificate type. */
+  intendedAudience?: InputMaybe<ZonosIntendedAudience>;
 };
 
 export type ZonosItemComposition = {
@@ -6946,6 +10784,7 @@ export type ZonosItemCreateWorkflowInput = {
   itemType?: InputMaybe<ZonosItemType>;
   /** The manufacturer `Party` associated with this `Item`. */
   manufacturerParty?: InputMaybe<ZonosItemManufacturerPartyCreateInput>;
+  manufacturerProductId?: InputMaybe<Scalars['String']>;
   /** Marketplace where this `Item` is sold. */
   marketplace?: InputMaybe<ZonosItemMarketplaceInput>;
   /** List of `Item` weights and dimensions. */
@@ -6990,6 +10829,8 @@ export type ZonosItemExtractConfigurationInput = {
   classify: ZonosInferenceStatus;
   /** Whether or not to estimate the value of the item */
   estimateValue: ZonosInferenceStatus;
+  /** Whether or not to estimate the weight of the item */
+  estimateWeight?: InputMaybe<ZonosInferenceStatus>;
   /** Whether or not to infer the country of origin of the item */
   inferCountryOfOrigin: ZonosInferenceStatus;
 };
@@ -7010,6 +10851,8 @@ export type ZonosItemInput = {
   description?: InputMaybe<Scalars['String']>;
   /** Allows user to remove items from duties, taxes, or fee calculations */
   dutyTaxFeeConfiguration?: InputMaybe<ZonosDutyTaxFeeConfiguration>;
+  /** Global Trade Item Number for the `Item`. */
+  gtin?: InputMaybe<Scalars['String']>;
   /** HS code for this `Item`. */
   hsCode?: InputMaybe<Scalars['String']>;
   /** HS code source for this `Item`. */
@@ -7018,6 +10861,7 @@ export type ZonosItemInput = {
   imageUrl?: InputMaybe<Scalars['String']>;
   /** Determines whether or not an item can be physically shipped. */
   itemType?: InputMaybe<ZonosItemType>;
+  manufacturerProductId?: InputMaybe<Scalars['String']>;
   /** List of `Item` weights and dimensions. */
   measurements?: InputMaybe<Array<InputMaybe<ZonosItemMeasurementInput>>>;
   /** User-accessible key/value metadata. */
@@ -7081,6 +10925,8 @@ export type ZonosItemMeasurement = {
   __typename?: 'ItemMeasurement';
   /** @deprecated No longer supported */
   alcoholByVolume: Maybe<Scalars['Int']>;
+  /** The substance/component this `Measurement` applies to (e.g. "MAGNESIUM"), used for duty content-subset measures. */
+  appliesTo: Maybe<Scalars['String']>;
   /** Where the `Measurement` is sourced from. */
   source: ZonosItemValueSource;
   /** Indicates what type of `Measurement`, e.g. weight, specific dim unit. */
@@ -7092,6 +10938,8 @@ export type ZonosItemMeasurement = {
 };
 
 export type ZonosItemMeasurementInput = {
+  /** Substance/component qualifier for content-subset measures (e.g. "MAGNESIUM" on a WEIGHT measurement declaring magnesium content). Callers that know the content value can supply it directly, sparing inference. */
+  appliesTo?: InputMaybe<Scalars['String']>;
   /** Indicates what type of `Measurement`, e.g. weight, specific dim unit. */
   type: ZonosItemMeasurementType;
   /** Indicates the `Measurement` units to be used. */
@@ -7102,15 +10950,19 @@ export type ZonosItemMeasurementInput = {
 
 export type ZonosItemMeasurementType =
   | 'ALCOHOL_BY_VOLUME'
+  | 'AREA'
+  | 'COUNT'
   | 'HEIGHT'
   | 'LENGTH'
+  /** A line item's total weight across all units. Accepted at the API boundary only and converted to a per-unit `WEIGHT` measurement; never persisted. */
+  | 'TOTAL_WEIGHT'
   | 'VOLUME'
   | 'WEIGHT'
   | 'WIDTH';
 
 export type ZonosItemMeasurementsInput = {
-  type: ZonosItemMeasurementType;
-  unit: ZonosItemUnitOfMeasure;
+  type: ZonosCommercialInvoiceItemMeasurementType;
+  unit: ZonosCommercialInvoiceItemUnitOfMeasure;
   value: Scalars['Decimal'];
 };
 
@@ -7482,8 +11334,11 @@ export type ZonosItemType =
 
 export type ZonosItemUnitOfMeasure =
   | 'CENTIMETER'
+  | 'DOZEN'
+  | 'EACH'
   | 'FOOT'
   | 'GRAM'
+  | 'GROSS'
   | 'INCH'
   | 'KILOGRAM'
   | 'LITER'
@@ -7491,8 +11346,12 @@ export type ZonosItemUnitOfMeasure =
   | 'MILLILITER'
   | 'MILLIMETER'
   | 'OUNCE'
+  | 'PAIR'
   | 'PERCENTAGE'
+  | 'POLARIZATION_DEGREE'
   | 'POUND'
+  | 'PROOF_LITER'
+  | 'SQUARE_METER'
   | 'YARD';
 
 export type ZonosItemUpdateInput = {
@@ -7522,6 +11381,7 @@ export type ZonosItemUpdateInput = {
   item?: InputMaybe<ZonosItemInput>;
   /** Determines whether or not an item can be physically shipped. */
   itemType?: InputMaybe<ZonosItemType>;
+  manufacturerProductId?: InputMaybe<Scalars['String']>;
   /** List of `Item` weights and dimensions. @deprecated */
   measurements?: InputMaybe<Array<InputMaybe<ZonosItemMeasurementInput>>>;
   /** User-accessible key/value metadata. @deprecated */
@@ -7570,6 +11430,7 @@ export type ZonosItemValueSource =
   | 'CLASSIFY_ON_THE_FLY'
   | 'FALLBACK'
   | 'HYBRID'
+  | 'INFERRED'
   | 'ORGANIZATION_SETTING'
   | 'TARIFF_COMPLETED'
   | 'USER_PROVIDED';
@@ -7643,10 +11504,17 @@ export type ZonosKeyValueFilterInput = {
   value?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosKeyValueInput = {
+  key: Scalars['String'];
+  value: Scalars['String'];
+};
+
 export type ZonosLabel = {
   __typename?: 'Label';
   /** The carrier that the label was created for */
   carrier: ZonosCarrier;
+  /** The carrier's own shipment identifier (e.g. the Australia Post shipment_id), used for carrier order/manifest and void operations */
+  carrierShipmentId: Maybe<Scalars['String']>;
   /** The date and time this Label was created */
   createdAt: Scalars['DateTime'];
   /** The user who created this Label */
@@ -7759,8 +11627,11 @@ export type ZonosLabelBrokerType =
 
 export type ZonosLabelCarrierCode =
   | 'APC'
+  | 'ASENDIA'
+  | 'AUSTRALIA_POST'
   | 'CANADA_POST'
   | 'DHL'
+  | 'DHL_ECOMMERCE'
   | 'DIRECT_LINK'
   | 'EHUB'
   | 'ENVIA'
@@ -8000,6 +11871,8 @@ export type ZonosLabelDangerousGoodsCategory =
   | 'CONSUMER_COMMODITY'
   /** Excepted Quantity per IATA. */
   | 'EXCEPTED_QUANTITY'
+  /** Fully regulated dangerous goods, i.e. no exemption or special provision applies. Maps to the UPS HazMat CommodityRegulatedLevelCode FR. */
+  | 'FULLY_REGULATED'
   /** Limited Quantity per ADR. */
   | 'LIMITED_QUANTITY'
   /** Magnetized material (UN2807). */
@@ -8030,6 +11903,8 @@ export type ZonosLabelDangerousGoodsDetailInput = {
   category?: InputMaybe<ZonosLabelDangerousGoodsCategory>;
   /** Container information */
   containers?: InputMaybe<Array<ZonosLabelDangerousGoodsContainerInput>>;
+  /** Name of the 24-hour emergency contact, or a contract number such as a CHEMTREC subscription. UPS requires this whenever an emergency phone number is present and the shipment has a US or PR origin or destination under IATA air rules. Capped at 35 characters by UPS. */
+  emergencyContactName?: InputMaybe<Scalars['String']>;
   /** 24-hour emergency contact number */
   emergencyContactNumber?: InputMaybe<Scalars['String']>;
   /** DG shipping options */
@@ -8343,7 +12218,7 @@ export type ZonosLabelHazardousCommodityInput = {
   cargoAircraftOnly?: InputMaybe<Scalars['Boolean']>;
   /** DOT hazard class (e.g., "3" for flammable liquids) */
   hazardClass: Scalars['String'];
-  /** UN/NA ID number (e.g., "1090" for Acetone) */
+  /** UN/NA/ID number including its prefix, exactly as the carrier expects it (e.g. "UN1090" for Acetone, "ID8000" for a consumer commodity). Sent to carriers verbatim — the prefix is not inferred, since UN/NA/ID cannot be derived from the digits alone. */
   id: Scalars['String'];
   /** Packing group (I, II, or III) */
   packingGroup?: InputMaybe<ZonosLabelPackingGroup>;
@@ -8357,6 +12232,8 @@ export type ZonosLabelHazardousCommodityInput = {
   quantityUnits: Scalars['String'];
   /** Sequence number for multiple commodities */
   sequenceNumber?: InputMaybe<Scalars['Int']>;
+  /** Technical (chemical) name(s) of the commodity, required for "n.o.s." (not-otherwise-specified) proper shipping names per 49CFR §172.203 (e.g. "Sodium hydroxide, Sodium metasilicate pentahydrate"). Sent to the carrier verbatim; not derived. */
+  technicalName?: InputMaybe<Scalars['String']>;
 };
 
 export type ZonosLabelHoldAddressInput = {
@@ -8454,6 +12331,8 @@ export type ZonosLabelLocationInput = {
   administrativeArea?: InputMaybe<Scalars['String']>;
   /** The province or state code for this location. */
   administrativeAreaCode?: InputMaybe<Scalars['String']>;
+  /** Marks this address as a commercial property. When unset on a ship-to address, FedEx treats the recipient as residential (parcel only; freight, sold-to, and importer-of-record default to commercial). An explicit value is honored on any address except ship-from, which is always commercial. */
+  commercial?: InputMaybe<Scalars['Boolean']>;
   /** Contact information for the location */
   contact: ZonosLabelContactInput;
   /** ISO country code */
@@ -8497,6 +12376,8 @@ export type ZonosLabelNonDeliveryTransportType =
   | 'MOST_ECONOMICAL';
 
 export type ZonosLabelPackageInput = {
+  /** The declared value (carrier insurance) for this specific package. Takes priority over the shipment-level declared value. */
+  declaredValue?: InputMaybe<Scalars['Decimal']>;
   /** Unit of measurement for the dimensions of this LabelPackage. */
   dimensionalUnit?: InputMaybe<ZonosDimensionalUnitCode>;
   /** Height of the package. */
@@ -8693,6 +12574,8 @@ export type ZonosLabelReturnType =
 
 export type ZonosLabelSettings = {
   __typename?: 'LabelSettings';
+  /** When true the commercial invoice always prints with the label. When false it prints only for shipments the carrier did not file electronically. */
+  alwaysPrintCommercialInvoice: Scalars['Boolean'];
   /** Timestamp of when the LabelSettings were created */
   createdAt: Scalars['DateTime'];
   /** The user who created the LabelSettings */
@@ -8728,6 +12611,8 @@ export type ZonosLabelSettings = {
 };
 
 export type ZonosLabelSettingsUpdateInput = {
+  /** When true the commercial invoice always prints with the label. Omit to leave unchanged; the resolver only writes when the field is non-null. */
+  alwaysPrintCommercialInvoice?: InputMaybe<Scalars['Boolean']>;
   /** Determines which currency is used on commercial invoices and customs documents */
   currencyDisplayMode?: InputMaybe<ZonosCurrencyDisplayMode>;
   /** A customDeclaration object to be used when creating labels */
@@ -8748,6 +12633,8 @@ export type ZonosLabelSettingsUpdateInput = {
   shipsDangerousGoods?: InputMaybe<Scalars['Boolean']>;
   /** Indicates whether a signature is required for the label - default setting */
   signatureRequired?: InputMaybe<Scalars['Boolean']>;
+  /** Indicates whether this organization is allowed to create USPS labels through the Zonos carrier account. Omit to leave unchanged; the resolver only writes when the field is non-null. */
+  uspsEnabled?: InputMaybe<Scalars['Boolean']>;
 };
 
 export type ZonosLabelSignatureOptionType =
@@ -8963,6 +12850,8 @@ export type ZonosLandedCost = {
   additionalHsCodes: Maybe<Array<ZonosLandedCostAdditionalHsCode>>;
   /** Amount totals for duties, taxes, fees */
   amountSubtotals: Maybe<ZonosLandedCostAmountSubtotals>;
+  /** Compliance obligations on this quote. Null when the caller never asked for a check. */
+  compliance: Maybe<ZonosLandedCostCompliance>;
   /** When this `LandedCost` was created */
   createdAt: Scalars['DateTime'];
   /** The user who created the `LandedCost` */
@@ -9017,7 +12906,14 @@ export type ZonosLandedCost = {
   /** Indicates what method Zonos used to calculate the tariff rates for this `LandedCost` */
   tariffRate: ZonosLandedCostTariffRate;
   taxId: Maybe<ZonosTaxId>;
+  /** TaxIdNumber used for this landedCost */
+  taxIdNumber: Maybe<Scalars['String']>;
   taxIds: Maybe<Array<Maybe<ZonosTaxId>>>;
+  /**
+   * TaxNumber used for this landedCost.
+   * @deprecated Use taxIdNumber instead
+   */
+  taxNumber: Maybe<Scalars['String']>;
   /** A list of taxes assessed for this `LandedCost` */
   taxes: Array<ZonosTax>;
   /** When this `LandedCost` was most recently updated */
@@ -9152,8 +13048,12 @@ export type ZonosLandedCostBillingRuleDetailCategoryIdCreateType =
   | 'CHECKOUT_MERCHANT_PROCESSING'
   | 'CHECKOUT_SHIPPING_IGLOBAL'
   | 'CHECKOUT_TRANSACTION_PERCENT'
+  | 'COLLECT_GUARANTEE_ORDER'
+  | 'COLLECT_GUARANTEE_PERCENT'
   | 'COLLECT_ORDER'
   | 'COLLECT_PERCENT'
+  | 'COLLECT_TRANSACTION_ORDER'
+  | 'DUTY_REMITTANCE_US'
   | 'ETSY_GUARANTEE_ORDER'
   | 'ETSY_GUARANTEE_PERCENT'
   | 'ETSY_MERCHANT_FEE_PERCENT'
@@ -9192,6 +13092,14 @@ export type ZonosLandedCostCalculationMethod =
   /** Use the Zonos configured profile settings to provide a DDP or DAP quote. */
   | 'ZONOS_CONFIGURED';
 
+export type ZonosLandedCostCompliance = {
+  __typename?: 'LandedCostCompliance';
+  /** How many lines still need the shipper. */
+  outstandingCount: Scalars['Int'];
+  /** True once every outstanding questionnaire on this quote is answered. */
+  ready: Scalars['Boolean'];
+};
+
 export type ZonosLandedCostConnection = {
   __typename?: 'LandedCostConnection';
   edges: Maybe<Array<Maybe<ZonosLandedCostEdge>>>;
@@ -9216,6 +13124,10 @@ export type ZonosLandedCostCreateInput = {
   quoteType?: InputMaybe<ZonosLandedCostQuoteType>;
   /** `Root` resource ID that this `LandedCost` belongs to. */
   rootId: Scalars['ID'];
+  /** Country where the shipment originates. */
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  /** Country where the shipment is delivered. */
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
   /** `ShipmentRating` that contains shipping cost and other related details for this `LandedCost`. */
   shipmentRating: Scalars['ID'];
   /** Indicates what method Zonos should use to calculate the `TariffRate`s for this quote. */
@@ -9316,6 +13228,8 @@ export type ZonosLandedCostFeeType =
   | 'LANDED_COST'
   | 'OTHER'
   | 'PARTNER_REV_SHARE'
+  /** Postal operator surcharge for PDDP (Postal Delivered Duty Paid) clearance */
+  | 'PDDP_SURCHARGE'
   | 'PREPAY_DISBURSEMENT'
   | 'PREPAY_DISBURSEMENT_FEE'
   | 'PREPAY_FEE'
@@ -9364,7 +13278,11 @@ export type ZonosLandedCostGuaranteeCode =
   | 'POSTAL_DDP'
   | 'POSTAL_DDP_INCLUSIVE_PRICE'
   /** Zonos covers any landed cost discrepancies */
-  | 'ZONOS';
+  | 'ZONOS'
+  /** Zonos covers any duties and fees, merchant is responsible for remitting taxes */
+  | 'ZONOS_IMPORT'
+  /** Zonos covers any remittance */
+  | 'ZONOS_REMIT';
 
 export type ZonosLandedCostInput = {
   /** The arrival date for the package. */
@@ -9419,6 +13337,7 @@ export type ZonosLandedCostMethod =
   | 'DDP_PREFERRED';
 
 export type ZonosLandedCostPaymentProcessor =
+  | 'AIRWALLEX'
   | 'PAYPAL'
   | 'STRIPE';
 
@@ -9427,6 +13346,8 @@ export type ZonosLandedCostQuoteType =
   | 'API'
   /** quote generated to create a collect cart */
   | 'COLLECT'
+  /** this quote is an inclusive quote associated with a quote */
+  | 'INCLUSIVE_CONFIGURATION'
   /** This is the landed cost associated with an invoice that can either be paid by a third party or joined with other to form a larger invoice */
   | 'INVOICE_COLLECT'
   /** This represents the type of quote where shipping, duty, tax and fees are possible collection items */
@@ -9447,6 +13368,13 @@ export type ZonosLandedCostRemittance = {
   note: Scalars['String'];
   /** The taxId that will be used for tax remittance. */
   taxId: Maybe<Scalars['String']>;
+  /** TaxIdNumber used for this landedCost */
+  taxIdNumber: Maybe<Scalars['String']>;
+  /**
+   * TaxNumber used for this landedCost.
+   * @deprecated Use taxIdNumber instead
+   */
+  taxNumber: Maybe<Scalars['String']>;
 };
 
 /** Attributes for the LandedCostSettings */
@@ -9514,6 +13442,12 @@ export type ZonosLandedCostTaxAmountDetail = {
   type: Maybe<Scalars['String']>;
 };
 
+export type ZonosLandedCostTaxRemittanceCalculationType =
+  /** remittance does not get calculated, but taxes on duties does */
+  | 'NO_REMITTANCE'
+  /** remittance gets calculated */
+  | 'REMITTANCE';
+
 export type ZonosLandedCostWeightUnit =
   | 'CG'
   | 'CT'
@@ -9531,6 +13465,8 @@ export type ZonosLandedCostWorkFlowInput = {
   arrivalDate?: InputMaybe<Scalars['DateTime']>;
   /** The method to use for the landed cost calculation. */
   calculationMethod?: InputMaybe<ZonosLandedCostCalculationMethod>;
+  /** Check this shipment for compliance obligations. Anything the shipper must resolve is returned on `links`. */
+  compliance?: InputMaybe<Scalars['Boolean']>;
   /** Currency to use for the landed cost subtotals. */
   currencyCode?: InputMaybe<ZonosCurrencyCode>;
   /** Indicates what use the goods being quoted for will have */
@@ -9541,229 +13477,127 @@ export type ZonosLandedCostWorkFlowInput = {
   method?: InputMaybe<ZonosIncotermCode>;
   /** The type of quote to generate. */
   quoteType?: InputMaybe<ZonosLandedCostQuoteType>;
+  /** Re-quote the root of an earlier `LandedCost`. Send without the create workflows. */
+  rootId?: InputMaybe<Scalars['ID']>;
   /** Id of the landed cost associated with a source LCG transaction. This is provided only when changes are required to an LCG transaction that would require a re-calculation of duties, taxes and fees. The source landed cost must fall within the guarantee window (default: 90 days) and have the same parties and currencies as the re-calculated landed cost. */
   sourceLandedCostId?: InputMaybe<Scalars['String']>;
   /** Indicates what method Zonos should use to calculate the tariff rates for this quote */
   tariffRate: ZonosLandedCostTariffRate;
+  /** TaxIdNumber used for this landedCost */
+  taxIdNumber?: InputMaybe<Scalars['String']>;
+  taxRemittanceCalculation?: InputMaybe<ZonosLandedCostTaxRemittanceCalculationType>;
 };
 
+/** The language of a piece of text. */
 export type ZonosLanguageCode =
-  /** Afrikaans */
   | 'AF'
-  /** Amharic */
   | 'AM'
-  /** Arabic */
   | 'AR'
-  /** Azerbaijani */
   | 'AZ'
-  /** Belarusian */
   | 'BE'
-  /** Bulgarian */
   | 'BG'
-  /** Bengali */
   | 'BN'
-  /** Bosnian */
   | 'BS'
-  /** Catalan */
   | 'CA'
-  /** Cebuano */
   | 'CEB'
-  /** Corsican */
   | 'CO'
-  /** Czech */
   | 'CS'
-  /** Welsh */
   | 'CY'
-  /** Danish */
   | 'DA'
-  /** German */
   | 'DE'
-  /** Greek */
   | 'EL'
-  /** English */
   | 'EN'
-  /** Esperanto */
   | 'EO'
-  /** Spanish */
   | 'ES'
-  /** Estonian */
   | 'ET'
-  /** Basque */
   | 'EU'
-  /** Persian */
   | 'FA'
-  /** Finnish */
   | 'FI'
-  /** French */
   | 'FR'
-  /** Frisian */
   | 'FY'
-  /** Irish */
   | 'GA'
-  /** Scots Gaelic */
   | 'GD'
-  /** Galician */
   | 'GL'
-  /** Gujarati */
   | 'GU'
-  /** Hausa */
   | 'HA'
-  /** Hawaiian */
   | 'HAW'
-  /** Hebrew (2 possible values) */
   | 'HE'
-  /** Hindi */
   | 'HI'
-  /** Hmong */
   | 'HMN'
-  /** Croatian */
   | 'HR'
-  /** Haitian Creole */
   | 'HT'
-  /** Hungarian */
   | 'HU'
-  /** Armenian */
   | 'HY'
-  /** Indonesian */
   | 'ID'
-  /** Igbo */
   | 'IG'
-  /** Icelandic */
   | 'IS'
-  /** Italian */
   | 'IT'
   | 'IW'
-  /** Japanese */
   | 'JA'
-  /** Javanese */
   | 'JV'
-  /** Georgian */
   | 'KA'
-  /** Kazakh */
   | 'KK'
-  /** Khmer */
   | 'KM'
-  /** Kannada */
   | 'KN'
-  /** Korean */
   | 'KO'
-  /** Kurdish */
   | 'KU'
-  /** Kyrgyz */
   | 'KY'
-  /** Luxembourgish */
   | 'LB'
-  /** Lao */
   | 'LO'
-  /** Lithuanian */
   | 'LT'
-  /** Latvian */
   | 'LV'
-  /** Malagasy */
   | 'MG'
-  /** Maori */
   | 'MI'
-  /** Macedonian */
   | 'MK'
-  /** Malayalam */
   | 'ML'
-  /** Mongolian */
   | 'MN'
-  /** Marathi */
   | 'MR'
-  /** Malay */
   | 'MS'
-  /** Maltese */
   | 'MT'
-  /** Myanmar (Burmese) */
   | 'MY'
-  /** Napali */
   | 'NE'
-  /** Dutch */
   | 'NL'
-  /** Norwegian */
   | 'NO'
-  /** Nyanja (Chichewa) */
   | 'NY'
-  /** Odia (Oriya) */
   | 'OR'
-  /** Punjabi */
   | 'PA'
-  /** Polish */
   | 'PL'
-  /** Pashto */
   | 'PS'
-  /** Portuguese (Portugal, Brazil) */
   | 'PT'
-  /** Romanian */
   | 'RO'
-  /** Russian */
   | 'RU'
-  /** Kinyarwanda */
   | 'RW'
-  /** Sindhi */
   | 'SD'
-  /** Sinhala (Sinhalese) */
   | 'SI'
-  /** Slovak */
   | 'SK'
-  /** Slovenian */
   | 'SL'
-  /** Samoan */
   | 'SM'
-  /** Shona */
   | 'SN'
-  /** Somali */
   | 'SO'
-  /** Albanian */
   | 'SQ'
-  /** Serbian */
   | 'SR'
-  /** Sesotho */
   | 'ST'
-  /** Sundanese */
   | 'SU'
-  /** Swedish */
   | 'SV'
-  /** Swahili */
   | 'SW'
-  /** Tamil */
   | 'TA'
-  /** Telugu */
   | 'TE'
-  /** Tajik */
   | 'TG'
-  /** Thai */
   | 'TH'
-  /** Turkmen */
   | 'TK'
-  /** Tagalog (Filipino) */
   | 'TL'
-  /** Turkish */
   | 'TR'
-  /** Tatar */
   | 'TT'
-  /** Uyghur */
   | 'UG'
-  /** Ukrainian */
   | 'UK'
-  /** Urdu */
   | 'UR'
-  /** Uzbek */
   | 'UZ'
-  /** Vietnamese */
   | 'VI'
-  /** Xhosa */
   | 'XH'
-  /** Yiddish */
   | 'YI'
-  /** Yoruba */
   | 'YO'
-  /** Chinese (Simplified) */
   | 'ZH_CN'
-  /** Chinese (Traditional) */
   | 'ZH_TW'
-  /** Zulu */
   | 'ZU';
 
 export type ZonosLcgBillingMethod =
@@ -9844,7 +13678,7 @@ export type ZonosLocation = {
   plusCode: Maybe<Scalars['String']>;
   /** The postal or ZIP code of the location. */
   postalCode: Maybe<Scalars['String']>;
-  /** The type of property associated with the location (e.g., RESIDENTIAL, COMMERCIAL). */
+  /** Whether this location is a residential or commercial property. Carriers use it to classify the delivery; FedEx, for example, applies a residential delivery surcharge to residential recipients. When left unset on a ship-to party, the destination defaults to RESIDENTIAL so that carrier options requiring a residential address (such as FedEx indirect signature) remain available. Set COMMERCIAL for business deliveries to avoid the residential surcharge. */
   propertyType: Maybe<ZonosPropertyType>;
   /** The timestamp when the location record was last updated. */
   updatedAt: Scalars['DateTime'];
@@ -9880,7 +13714,7 @@ export type ZonosLocationCreateInput = {
   plusCode?: InputMaybe<Scalars['String']>;
   /** The postal or ZIP code of the location. */
   postalCode?: InputMaybe<Scalars['String']>;
-  /** The type of property associated with the location (e.g., RESIDENTIAL, COMMERCIAL). */
+  /** Whether this location is a residential or commercial property. Carriers use it to classify the delivery; FedEx, for example, applies a residential delivery surcharge to residential recipients. When left unset on a ship-to party, the destination defaults to RESIDENTIAL so that carrier options requiring a residential address (such as FedEx indirect signature) remain available. Set COMMERCIAL for business deliveries to avoid the residential surcharge. */
   propertyType?: InputMaybe<ZonosPropertyType>;
 };
 
@@ -9984,12 +13818,16 @@ export type ZonosManifest = {
   originCode: Scalars['String'];
   /** Postal operator code for the `Manifest` */
   postalOperatorCode: ZonosPostalOperatorCode;
+  /** Scheduled departure. Defaults to arrival date minus eight hours. */
+  scheduledDeparture: Maybe<Scalars['DateTime']>;
   /** Service number for the `Manifest` (e.g. flight number, train number, etc.) */
   serviceNumber: Scalars['String'];
   /** Status updates for the `Manifest` */
   statusTransitions: Array<ZonosManifestStatusUpdate>;
   /** Transportation mode for the `Manifest`. Defaults to `AIR` */
   transportationMode: ZonosTransportationMode;
+  /** Processing type of the manifest. */
+  type: ZonosManifestType;
   /** Timestamp when the `Manifest` was last updated */
   updatedAt: Scalars['DateTime'];
   /** User or system that last updated the `Manifest` */
@@ -10087,20 +13925,87 @@ export type ZonosManifestInput = {
   originCode?: InputMaybe<Scalars['String']>;
   /** Postal operator code for the `Manifest` */
   postalOperatorCode: ZonosPostalOperatorCode;
+  /** Scheduled departure. Defaults to arrival date minus eight hours. */
+  scheduledDeparture?: InputMaybe<Scalars['DateTime']>;
   /** Service number for the `Manifest` (e.g. flight number, train number, etc.) */
   serviceNumber: Scalars['String'];
   /** Optional transportation mode for the `Manifest`. Defaults to `AIR` */
   transportationMode?: InputMaybe<ZonosTransportationMode>;
+  /** Optional name of the vessel carrying the `Manifest` */
+  vesselName?: InputMaybe<Scalars['String']>;
   /** Optional total weight of the `Manifest` */
   weight?: InputMaybe<Scalars['Decimal']>;
   /** Unit of weight measurement for the `Manifest`. Must be provided if weight is provided */
   weightUnit?: InputMaybe<ZonosWeightUnitCode>;
 };
 
+/** A material that makes up part of a product's composition. */
+export type ZonosManifestItemCompositionInput = {
+  /** Country where the material was cast. */
+  countryOfCast?: InputMaybe<ZonosCountryCode>;
+  /** Country where the material was melted and poured. */
+  countryOfMeltAndPour?: InputMaybe<ZonosCountryCode>;
+  /** The material name. */
+  material: Scalars['String'];
+  /** The percentage of the product this material represents. */
+  percentage: Scalars['Decimal'];
+  /** Primary country where the material was smelted. */
+  primaryCountryOfSmelt?: InputMaybe<ZonosCountryCode>;
+  /** Secondary country where the material was smelted. */
+  secondaryCountryOfSmelt?: InputMaybe<ZonosCountryCode>;
+};
+
+/** The marketplace where an item is sold. */
+export type ZonosManifestItemMarketplaceInput = {
+  /** Marketplace name. */
+  name?: InputMaybe<Scalars['String']>;
+  /** URL of the marketplace listing. */
+  url?: InputMaybe<Scalars['String']>;
+};
+
+/** A single weight or dimension measurement for an item. */
+export type ZonosManifestItemMeasurementInput = {
+  /** The type of measurement (e.g. weight, a specific dimension). */
+  type: ZonosManifestItemMeasurementType;
+  /** The unit the measurement value is expressed in. */
+  unitOfMeasure: ZonosManifestItemUnitOfMeasure;
+  /** The measurement value. */
+  value: Scalars['Decimal'];
+};
+
+/** The type of an item measurement. */
+export type ZonosManifestItemMeasurementType =
+  | 'ALCOHOL_BY_VOLUME'
+  | 'HEIGHT'
+  | 'LENGTH'
+  /** A line item's total weight across all units. Accepted at the API boundary only and converted downstream to a per-unit `WEIGHT` measurement; never persisted. Do not send both `WEIGHT` and `TOTAL_WEIGHT` for the same item. */
+  | 'TOTAL_WEIGHT'
+  | 'VOLUME'
+  | 'WEIGHT'
+  | 'WIDTH';
+
+/** The unit of measure for an item measurement. */
+export type ZonosManifestItemUnitOfMeasure =
+  | 'CENTIMETER'
+  | 'FOOT'
+  | 'GRAM'
+  | 'INCH'
+  | 'KILOGRAM'
+  | 'LITER'
+  | 'METER'
+  | 'MILLILITER'
+  | 'MILLIMETER'
+  | 'OUNCE'
+  | 'PERCENTAGE'
+  | 'POUND'
+  | 'YARD';
+
 export type ZonosManifestLine = {
   __typename?: 'ManifestLine';
-  /** Arrival date for the `Manifest` */
-  arrivalDate: Scalars['DateTime'];
+  /** Arrival date of the containing manifest. Null while the line is unlinked. */
+  arrivalDate: Maybe<Scalars['DateTime']>;
+  /** Consignment weight in kilograms for the package this line is part of. Same value across all lines sharing a tracking number. */
+  consignmentWeight: Maybe<Scalars['Decimal']>;
   /** Timestamp when the `ManifestLine` was created */
   createdAt: Scalars['DateTime'];
   /** User or system that created the `ManifestLine` */
@@ -10113,10 +14018,18 @@ export type ZonosManifestLine = {
   id: Scalars['ID'];
   /** `LandedCost` of the `ManifestLine` */
   landedCost: Maybe<ZonosLandedCost>;
-  /** Reference to the `Manifest` containing this `ManifestLine` */
-  manifestId: Scalars['ID'];
+  /** Reference to the `Manifest` containing this `ManifestLine`. Null while the line is unlinked. */
+  manifestId: Maybe<Scalars['ID']>;
+  /** The order this line produced, once one has been created. */
+  orderId: Maybe<Scalars['ID']>;
   /** Reference number for the `ManifestLine`. Must be unique, used for duplicate prevention. */
   referenceNumber: Maybe<Scalars['String']>;
+  /** Shipping cost used when building the federated `shipmentRatingCreate` input. Sourced from the postal rate sheet at ingest; required for CIF destinations (EU, GB, NO, CH). */
+  shippingCost: Maybe<Scalars['Decimal']>;
+  /** ISO 4217 currency for `shippingCost`. Inherited from the rate sheet (e.g. AUD for AusPost) or the USD fallback when no sheet entry matches. */
+  shippingCostCurrency: Maybe<ZonosCurrencyCode>;
+  /** Tax identification number associated with the `ManifestLine` (e.g. an IOSS number for EU import VAT). */
+  taxIdNumber: Maybe<Scalars['String']>;
   /** Tracking number for this `ManifestLine` */
   trackingNumber: Scalars['String'];
   /** Timestamp when the `ManifestLine` was last updated */
@@ -10151,23 +14064,37 @@ export type ZonosManifestLineEndUse =
   | 'RETURN';
 
 export type ZonosManifestLineFilter = {
+  /** Filter matching `ManifestLine` records based on the order they produced. A line has at most one order, so this resolves to a single line. */
+  orderId?: InputMaybe<Scalars['ID']>;
   /** Filter matching `ManifestLine` records based on matching `trackingNumber` field */
   trackingNumber?: InputMaybe<Scalars['String']>;
 };
 
 export type ZonosManifestLineInput = {
+  /** Consignment weight in kilograms for the package this line belongs to. Same value across all lines sharing a tracking number. */
+  consignmentWeight?: InputMaybe<Scalars['Decimal']>;
   /** Currency code for all items in the `ManifestLine` */
   currencyCode: ZonosCurrencyCode;
+  /** Optional ID of the `Declaration` for the `ManifestLine` */
+  declarationId?: InputMaybe<Scalars['ID']>;
   /** End use classification for the `ManifestLine` */
   endUse: ZonosManifestLineEndUse;
   /** Items of the `ManifestLine` */
   items: Array<ZonosManifestLineItemInput>;
   /** Parties of the `ManifestLine` */
   parties: Array<ZonosManifestPartyCreateWorkflowInput>;
+  /** Postal operator for the line. Used by `brokerageManifestLinesCreate`, where it overrides the request default; ignored elsewhere. */
+  postalOperatorCode?: InputMaybe<ZonosPostalOperatorCode>;
   /** Reference number for the `ManifestLine`. If provided, must be unique as it is used for duplicate prevention. */
   referenceNumber?: InputMaybe<Scalars['String']>;
   /** The organization or vendorExternalId of the partner org. */
   shipperAccountId?: InputMaybe<Scalars['String']>;
+  /** Shipping cost used when building the federated `shipmentRatingCreate` input. Required for CIF destinations (EU, GB, NO, CH); ignored for US deminimis flows. */
+  shippingCost?: InputMaybe<Scalars['Decimal']>;
+  /** ISO 4217 currency for `shippingCost`. Defaults to USD if unspecified. */
+  shippingCostCurrency?: InputMaybe<ZonosCurrencyCode>;
+  /** Tax identification number associated with the `ManifestLine` (e.g. an IOSS number for EU import VAT). */
+  taxIdNumber?: InputMaybe<Scalars['String']>;
   /** Tracking number for the `ManifestLine` */
   trackingNumber: Scalars['String'];
 };
@@ -10177,14 +14104,30 @@ export type ZonosManifestLineItemInput = {
   amount?: InputMaybe<Scalars['Decimal']>;
   /** 2-letter ISO country code of origin for the item */
   countryOfOrigin: ZonosCountryCode;
+  /** Customs-specific description override for the item, distinct from the catalog description. */
+  customsDescription?: InputMaybe<Scalars['String']>;
   /** Detailed description of the item */
   description?: InputMaybe<Scalars['String']>;
+  /** ID of a brokerage document linked to this item. */
+  documentId?: InputMaybe<Scalars['ID']>;
+  /** Global Trade Item Number (GTIN) for the item. */
+  gtin?: InputMaybe<Scalars['String']>;
   /** Harmonized System commodity code */
   hsCode?: InputMaybe<Scalars['String']>;
+  /** Marketplace where the item is sold. */
+  marketplace?: InputMaybe<ZonosManifestItemMarketplaceInput>;
+  /** List of item weights and dimensions. */
+  measurements?: InputMaybe<Array<ZonosManifestItemMeasurementInput>>;
   /** Name of the item */
   name?: InputMaybe<Scalars['String']>;
+  /** Raw Partner Government Agency data to persist with the created item. */
+  pgaRawData?: InputMaybe<Scalars['String']>;
+  /** The material composition of the product. */
+  productComposition?: InputMaybe<Array<ZonosManifestItemCompositionInput>>;
   /** Product ID for the item */
   productId?: InputMaybe<Scalars['String']>;
+  /** Optional administrative area where the item originates. Required by some countries. */
+  provinceOfOrigin?: InputMaybe<Scalars['String']>;
   /** Quantity of items */
   quantity: Scalars['Int'];
   /** External reference number for the item */
@@ -10193,6 +14136,8 @@ export type ZonosManifestLineItemInput = {
   sku?: InputMaybe<Scalars['String']>;
   /** Optional: The line items total amount. If provided the `amount` will be computed from the totalAmount / quantity. */
   totalAmount?: InputMaybe<Scalars['Decimal']>;
+  /** Universal Product Code (UPC) for the item. A UPC is a 12-digit GTIN; if `gtin` is not provided this value is used as the item's GTIN. */
+  upc?: InputMaybe<Scalars['String']>;
 };
 
 /** Input type for creating multiple parties in a workflow. */
@@ -10228,6 +14173,11 @@ export type ZonosManifestStatusUpdate = {
   source: ZonosManifestDataSource;
 };
 
+/** Processing type of a manifest. Set by the creation mutation. */
+export type ZonosManifestType =
+  | 'BROKERAGE'
+  | 'STANDARD';
+
 export type ZonosManifestUpdateInput = {
   /** Optional new arrival date for the `Manifest` */
   arrivalDate?: InputMaybe<Scalars['DateTime']>;
@@ -10235,6 +14185,8 @@ export type ZonosManifestUpdateInput = {
   carrierCode?: InputMaybe<Scalars['String']>;
   /** Note for the `Manifest` update */
   note?: InputMaybe<Scalars['String']>;
+  /** Scheduled departure. Defaults to arrival date minus eight hours. */
+  scheduledDeparture?: InputMaybe<Scalars['DateTime']>;
   /** Optional new service number for the `Manifest` */
   serviceNumber?: InputMaybe<Scalars['String']>;
   /** Data source for the `Manifest` update */
@@ -10665,6 +14617,74 @@ export type ZonosManualClassificationsFilter = {
   visibilityStatus?: InputMaybe<ZonosProvidedHsCodeVisibilityStatus>;
 };
 
+/** A manufacturer this organization has saved. Field names match the party location fields the ACE entity records map onto, which are also the ones drugEstablishmentSuggest returns. */
+export type ZonosManufacturer = {
+  __typename?: 'Manufacturer';
+  /** State or province, spelled out. FDA asks for it only on a US or Canadian manufacturer. */
+  administrativeArea: Maybe<Scalars['String']>;
+  countryCode: Maybe<ZonosCountryCode>;
+  createdAt: Scalars['DateTime'];
+  createdBy: Maybe<Scalars['ID']>;
+  /** Manufacturer id, prefixed with `manufacturer_`. */
+  id: Scalars['ID'];
+  /** Street address of the site that made the product, not its head office. */
+  line1: Maybe<Scalars['String']>;
+  line2: Maybe<Scalars['String']>;
+  /** City or town of the manufacturing site. */
+  locality: Maybe<Scalars['String']>;
+  /** The manufacturer's name, as printed on the package or label. */
+  name: Scalars['String'];
+  /** ZIP or postal code. FDA asks for it only on a US or Canadian manufacturer. */
+  postalCode: Maybe<Scalars['String']>;
+  updatedAt: Maybe<Scalars['DateTime']>;
+  updatedBy: Maybe<Scalars['ID']>;
+};
+
+export type ZonosManufacturerConnection = {
+  __typename?: 'ManufacturerConnection';
+  edges: Array<ZonosManufacturerEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosManufacturerCreateInput = {
+  /** State or province, spelled out. FDA requires it for a US or Canadian manufacturer. */
+  administrativeArea?: InputMaybe<Scalars['String']>;
+  countryCode?: InputMaybe<ZonosCountryCode>;
+  /** Street address of the site that made the product, not its head office. */
+  line1?: InputMaybe<Scalars['String']>;
+  line2?: InputMaybe<Scalars['String']>;
+  /** City or town of the manufacturing site. */
+  locality?: InputMaybe<Scalars['String']>;
+  /** The manufacturer's name, as printed on the package or label. */
+  name: Scalars['String'];
+  /** ZIP or postal code. FDA requires it for a US or Canadian manufacturer. */
+  postalCode?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosManufacturerEdge = {
+  __typename?: 'ManufacturerEdge';
+  cursor: Scalars['String'];
+  node: ZonosManufacturer;
+};
+
+export type ZonosManufacturerUpdateInput = {
+  administrativeArea?: InputMaybe<Scalars['String']>;
+  countryCode?: InputMaybe<ZonosCountryCode>;
+  /** Id of the manufacturer to patch. */
+  id: Scalars['ID'];
+  line1?: InputMaybe<Scalars['String']>;
+  line2?: InputMaybe<Scalars['String']>;
+  locality?: InputMaybe<Scalars['String']>;
+  name?: InputMaybe<Scalars['String']>;
+  postalCode?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosManufacturersDeleteInput = {
+  /** Ids of the manufacturers to delete. */
+  ids: Array<Scalars['ID']>;
+};
+
 export type ZonosMarketProfileContext =
   | 'DISABLED'
   | 'ENABLED';
@@ -10754,6 +14774,23 @@ export type ZonosMerchantOfRecordType =
   /** Zonos is the merchant of record */
   | 'ZONOS';
 
+export type ZonosMerchantPolicyEuWithdrawalLink = {
+  __typename?: 'MerchantPolicyEUWithdrawalLink';
+  /** Currency of the maximum return shipping estimate. Always resolves to a currency, defaulting to USD. */
+  currencyCode: ZonosCurrencyCode;
+  /** The maximum return shipping amount the buyer may be responsible for. Null means no maximum is specified. */
+  maximumReturnShippingEstimate: Maybe<Scalars['Decimal']>;
+  /** Status of the EU Withdrawal Policy. DISABLED hides the notice from the buyer. */
+  status: Maybe<ZonosNotificationActiveStatus>;
+};
+
+/** Input for configuring the EU Withdrawal policy. Omitting `euWithdrawalPolicy` entirely leaves the current policy unchanged; providing it replaces the policy with exactly these values. Set `status` to ENABLED to show the withdrawal notice to EU buyers. Leave `maximumReturnShippingEstimate` null when all goods can be returned by post (no maximum needed) — a null value clears any existing cap. `currencyCode` defaults to USD when omitted. */
+export type ZonosMerchantPolicyEuWithdrawalLinkInput = {
+  currencyCode?: InputMaybe<ZonosCurrencyCode>;
+  maximumReturnShippingEstimate?: InputMaybe<Scalars['Decimal']>;
+  status?: InputMaybe<ZonosNotificationActiveStatus>;
+};
+
 /** A single merchant-configured policy entry. A policy is considered configured only when `link` is a non-empty URL. The wrapping object lets us extend the shape later (e.g., display name) without breaking existing consumers. */
 export type ZonosMerchantPolicyLink = {
   __typename?: 'MerchantPolicyLink';
@@ -10769,6 +14806,8 @@ export type ZonosMerchantPolicyLinkInput = {
 /** A set of merchant-configured policies the buyer must consent to before checkout completion. Any policy whose `link` is null or empty is hidden from the buyer. */
 export type ZonosMerchantPolicyLinks = {
   __typename?: 'MerchantPolicyLinks';
+  /** The merchant's EU Withdrawal Policy */
+  euWithdrawalPolicy: Maybe<ZonosMerchantPolicyEuWithdrawalLink>;
   /** The merchant's Privacy Policy */
   privacyPolicy: Maybe<ZonosMerchantPolicyLink>;
   /** The merchant's Refund Policy */
@@ -10783,6 +14822,7 @@ export type ZonosMerchantPolicyLinks = {
 
 /** Input for configuring merchant policies. For each policy: omit (or pass null) to leave unchanged, or pass a `MerchantPolicyLinkInput` to set or clear it. */
 export type ZonosMerchantPolicyLinksInput = {
+  euWithdrawalPolicy?: InputMaybe<ZonosMerchantPolicyEuWithdrawalLinkInput>;
   privacyPolicy?: InputMaybe<ZonosMerchantPolicyLinkInput>;
   refundPolicy?: InputMaybe<ZonosMerchantPolicyLinkInput>;
   shippingPolicy?: InputMaybe<ZonosMerchantPolicyLinkInput>;
@@ -10819,6 +14859,18 @@ export type ZonosMultiFactorAuthSetting =
 
 export type ZonosMutation = {
   __typename?: 'Mutation';
+  /** Attaches additional references to a document you have already uploaded. References that are already attached are ignored, so the call is safe to retry. Use this when you upload a document before you know everything it applies to. Returns the updated document. */
+  brokerageDocumentAddReferences: Maybe<ZonosBrokerageDocument>;
+  /** Starts a two-step upload and returns a temporary URL to send the file to. Upload the file to that URL, then call `brokerageDocumentUploadConfirm` to store the document. Prefer this over `brokerageDocumentUpload` for files larger than a few megabytes, since it avoids sending the file inline. */
+  brokerageDocumentStagedUpload: ZonosBrokerageDocumentStagedUpload;
+  /** Uploads a document, with the file sent as base64-encoded content. `references` is optional: a document with no references applies to your whole organization, such as a power of attorney that covers every shipment. For files larger than a few megabytes, use `brokerageDocumentStagedUpload` instead. */
+  brokerageDocumentUpload: ZonosBrokerageDocument;
+  /** Finishes a two-step upload started with `brokerageDocumentStagedUpload`. Call this after the file has been sent to the temporary URL. The document is not stored until this call succeeds. */
+  brokerageDocumentUploadConfirm: ZonosBrokerageDocument;
+  /** Creates or reuses the brokerage `Manifest` for the flight (postal operator, carrier code, service number, destination code and UTC arrival date) and links existing unlinked US-destination `ManifestLine`s with validated origin and destination parties. Lines already on that flight are skipped. Accepts up to 1000 line IDs. */
+  brokerageManifestCreate: ZonosManifest;
+  /** Creates brokerage `ManifestLine`s. US-destination lines stay unlinked until `brokerageManifestCreate`. US-destination lines require ORIGIN and DESTINATION names and street/city addresses, a destination postal code, and a US state code when the destination country is US. ORIGIN supplies the manufacturer fallback. Other lines require a `postalOperatorCode`, on the line or as the default for the request, and are quoted and ordered right away. */
+  brokerageManifestLinesCreate: Array<ZonosManifestLine>;
   carrierAccountConnect: ZonosCarrierAccountConnectResult;
   /** Create a `CarrierBillingInvoice` */
   carrierBillingInvoiceCreate: Array<Maybe<ZonosCarrierBillingInvoice>>;
@@ -10836,6 +14888,8 @@ export type ZonosMutation = {
   carrierInvoiceLineItemReconcile: Array<ZonosReconciliation>;
   /** Create A new cart for a group of items */
   cartCreate: ZonosCart;
+  /** Returns per-quote incremental amounts for each landed cost in the current workflow. Reads cart history from Redis (written by cartWorkflow in ItemDgs). Run in the same multi-query as cartWorkflow and landedCostCalculateWorkflow. */
+  cartHistoryWorkflow: Array<ZonosCartHistory>;
   /** Update a cart with new items or remove items */
   cartUpdate: ZonosCart;
   /** Upsert a cart */
@@ -10848,7 +14902,7 @@ export type ZonosMutation = {
   cartonizeWorkflow: Maybe<Array<Maybe<ZonosCarton>>>;
   /** Creates `Carton's` from a workflow request */
   cartonsCreateWorkflow: Maybe<Array<Maybe<ZonosCarton>>>;
-  /** Create one or many `CatalogItem`. */
+  /** Create one or many `CatalogItem`. If a `CatalogItem` with the same identifier (SKU, product ID, or both, depending on your catalog's item key setting) already exists, it is updated instead of rejected, and its existing ID is returned. Fields you provide replace the stored values, except `dutyTaxFeeConfiguration` and `productComposition`, which are only set when the item is first created. Fields you leave out keep their stored values. Because of this, repeating the same call (for example, after a timeout) is safe. */
   catalogItemCreate: Array<ZonosCatalogItem>;
   /** Delete one or many `CatalogItem`. */
   catalogItemDelete: ZonosResult;
@@ -10858,10 +14912,33 @@ export type ZonosMutation = {
   catalogItemExportByIds: ZonosExportJob;
   /** Creates a new catalog item export job and will send an email to the caller when complete. */
   catalogItemExportJobCreate: ZonosExportJob;
+  /** Add a country-specific HS code to an existing `CatalogItem`, identified by its SKU or product ID. If the `CatalogItem` already has an HS code for the same `shipToCountry`, that HS code is replaced instead of rejected, and its existing ID is returned. Because of this, repeating the same call (for example, after a timeout) is safe. */
+  catalogItemHsCodeCreate: Array<ZonosCatalogItemHsCode>;
+  /** Delete one or many tariff hsCodes to a catalogItem */
+  catalogItemHsCodeDelete: ZonosResult;
+  /** Update a tariff hsCode to a catalogItem */
+  catalogItemHsCodeUpdate: Array<ZonosCatalogItemHsCode>;
   /** Update one or many `CatalogItem`. */
   catalogItemUpdate: Array<ZonosCatalogItem>;
+  /** Add many `Category` records at once (idempotent per path) — e.g. to seed the full universe. */
+  categoriesCreate: Array<ZonosCategory>;
+  /** Validate whether each item's supplied categories correctly describe the item. Returns a `verdict` and a `confidenceScore`. When the verdict is `WRONG`, plausible alternative categories from the organization's category universe are returned in `suggestedCategories`. */
+  categoriesValidate: Array<ZonosCategoryValidation>;
+  /** Delete a `Category` from the organization's universe. */
+  categoryDelete: ZonosResult;
+  /** Update an existing `Category`'s path. */
+  categoryUpdate: ZonosCategory;
+  /** Creates a new order for the given channel connection. Calling this again with the same channel connection and external order ID will not create a duplicate order. */
+  channelOrderCreate: ZonosChannelOrder;
+  channelOrderUpdate: ZonosChannelOrder;
   /** Authenticates a Customer */
   checkoutCustomerProfileAuthenticate: ZonosCheckoutCustomerProfile;
+  /** Removes every tax exemption for a customer. */
+  checkoutCustomerTaxExemptionsDelete: ZonosResult;
+  /** Replaces each customer's tax exemptions with the supplied set. Malformed records are rejected individually rather than failing the batch. */
+  checkoutCustomerTaxExemptionsSync: Array<ZonosCheckoutCustomerTaxExemptionSyncResult>;
+  /** Creates or updates a customer without requiring authentication at checkout, matched on the merchant's customer ID. The customer has no Stripe ID until their first payment. */
+  checkoutCustomerUpsert: ZonosCheckoutCustomerProfile;
   /** Allows an API consumer to calculate a new `Classification` using the provided inputs. */
   classificationsCalculate: Array<ZonosClassification>;
   classificationsCalculateWithAugmentation: Array<ZonosClassification>;
@@ -10886,24 +14963,36 @@ export type ZonosMutation = {
   collectSubmissionUpdate: Array<ZonosCollectSubmission>;
   /** Generate upload URLs for `CollectInvoice` objects that will share a common `Prefix` */
   collectSubmissionUploadUrlGenerate: Array<ZonosCollectSubmissionUploadUrl>;
-  /** Assigns one or more consignments to a consolidation. Required before filing. */
+  /** Copies answers from `sourceCatalogItemId`'s completed response onto up to 100 target obligations for the same program and route, so a merchant reviews and attests instead of re-answering from scratch. Successes and failures are returned independently. */
+  complianceObligationsCopyAnswers: ZonosComplianceObligationRemediationResult;
+  /** Start or resume work for up to 100 durable catalog-item obligations. A CURRENT obligation opens a voluntary revision seeded from its satisfied response and remains CURRENT while editing, so the response already in force does not become blocking. Successes and failures are returned independently. */
+  complianceObligationsRemediate: ZonosComplianceObligationRemediationResult;
+  /** Open a session to amend answers a completed session already certified. Takes the completed session's id — its container, route and lines are all the input needed — and returns a NEW session whose lines start pre-answered from the responses currently in force, so the merchant edits what they last said instead of re-answering from scratch. Answering it finalizes through the ordinary path, superseding those responses. The session passed in is never modified. It stays COMPLETED and keeps its own answers and responses, so it remains the record of what was filed and of which session filed it. The responses it produced also stay in force until the new session finalizes: the item's complianceAttributes do not change while an amendment is in progress, and the container does not drop out of ready. A line is cloned for every line of the source session that has something to correct, meaning a current COMPLETE response for a CATALOG_ITEM target. Lines with nothing to correct are skipped, so a program that has since stopped applying is not resurrected; an ITEM line is always skipped, since its response may already be projected onto a filed entry. Upsert, not create: a container may have only one session open at a time, so the amendment lines are added to whatever session is already open — which is just as likely to be an ordinary outstanding questionnaire (opened by complianceQuestionnaireInfer or by a catalog-item change) as another amendment. An unrelated open questionnaire therefore never blocks an amendment, and the returned session may contain outstanding lines alongside the amendments; `lines` covers only the amendments. Re-calling is idempotent: an amendment already open is reported as it stands, never re-seeded over. Two cases must wait. If the open session already holds that program's line for the target — outstanding work, or an amendment that already finalized in it — a second line for the same identity is not allowed, so that program is skipped and logged; when no program can be amended for that reason, the call fails rather than reporting success against a session it did not touch. And if the open session is on a different ship route than the session being corrected, the call fails outright: a session's route decides the identity every line in it finalizes under, so an amendment can only be made under the route its answers were certified for. Lines are NOT auto-finalized. Edit through questionnaireAnswersSubmit, or accept the carried-over answers as they stand with questionnaireSessionAttest — an amendment is still a human act. */
+  complianceQuestionnaireAmend: ZonosComplianceQuestionnaireInferResult;
+  /** Infer the applicable compliance questionnaire for a set of items and open a session whose lines are pre-answered from inference (CLE2-64). Applicable programs are resolved per item (HS-driven); answers whose question effectKey matches an inferred fact are written with INFERRED provenance + confidence. Lines are NOT auto-finalized — fully-answered lines await questionnaireSessionAttest. Supersedes the deprecated questionnaireSessionInfer. Two ways to name the items. Pass `items` and the caller supplies the facts inference runs on. Omit `items` for a CATALOG_ITEM container and they are hydrated from what the catalog-item consumer (item.catalog-item.events.changed) snapshotted at event time — the flow a merchant opening the questionnaire page uses, since catalog upload opens sessions WITHOUT inference (deferred spend) and the page has no facts of its own to re-supply. `containerId` is the catalog item id, and `shipToCountry` may be omitted with it (see that field). The snapshot path is hash-guarded: when inference already ran for the item's current content the session is returned untouched — no LLM spend, previously inferred answers undisturbed — except that a `partyId` still names the certifier, which is a supplied value rather than inference. An inference whose item changed underneath it is discarded rather than left describing stale facts. A caller-supplied `items` run is never hash-guarded; it always infers. */
+  complianceQuestionnaireInfer: ZonosComplianceQuestionnaireInferResult;
+  /** Assigns one or more of the caller's consignments to a consolidation the caller owns. Required before filing. */
   consignmentAssignToConsolidation: Array<ZonosConsignment>;
-  /** Creates a consignment. Consolidation can be assigned inline via consolidationId, during consolidation creation via consignmentIds, or later via consignmentAssignToConsolidation. */
+  /** Creates a consignment owned by the caller's organization. Consolidation can be assigned inline via consolidationId, during consolidation creation via consignmentIds, or later via consignmentAssignToConsolidation. */
   consignmentCreateWorkflow: ZonosConsignment;
-  /** Removes one or more consignments from their consolidation. Cannot remove consignments that have been filed. */
+  /** Removes one or more of the caller's consignments from their consolidation. Cannot remove consignments that have been filed. */
   consignmentRemoveFromConsolidation: Array<ZonosConsignment>;
-  /** Creates a consolidation (carrier-level shipment grouping). */
+  /** Creates a consolidation (carrier-level shipment grouping) owned by the caller's organization. */
   consolidationCreate: ZonosConsolidation;
-  /** Files all consignments on a consolidation — submits to CBP via ABI provider. Entry creation is deferred to the entry-grouping poller. Requires at least one assigned consignment. */
-  consolidationFile: ZonosConsolidation;
-  /** Updates a consolidation. */
+  /** Updates a consolidation belonging to the caller's organization. */
   consolidationUpdate: ZonosConsolidation;
   /** Allows an API consumer to calculate a new `CountryOfOriginInference` using the provided inputs. */
   countryOfOriginInfer: Array<ZonosCountryOfOriginInference>;
   /** Allows an API consumer to validate a new `CountryOfOriginInference` using the provided inputs. */
   countryOfOriginValidate: Array<ZonosCountryOfOriginValidation>;
   customerInvoiceFilesCreate: Array<Maybe<ZonosCustomerInvoiceFile>>;
+  /** Checks whether an item's information is sufficient to confidently classify it, BEFORE committing to a classification result. Internally requests the real classification candidates (6-digit subheadings, and — when `shipToCountry` is given — the country-specific tariff lines within each subheading) and determines whether the supplied text disambiguates them. Returns a readiness status the caller applies their own policy to (e.g. ask the user for more detail, or proceed to classify). Still does not classify the item and does not return an HS code — only the readiness status and, if not fully ready, a list of clarifications that would help. */
+  customsDescriptionValidate: ZonosCustomsDescriptionValidation;
   customsDescriptionsCreate: Array<ZonosCustomsDescription>;
+  /** Batch version of `customsDescriptionValidate`: validates up to 50 items in one request. Items that fail to validate are omitted from the result and reported in `errors`, each with an `index` extension pointing at the failed input. */
+  customsDescriptionsValidate: Array<ZonosCustomsDescriptionValidation>;
+  /** Uploads a base64-encoded customs document and submits it directly to the specified carrier in a single call. The document is stored, processed into a `CustomsDocument` correlated to the given `Order`, and uploaded to the carrier (e.g. FedEx). Returns the resulting `CarrierDocumentSubmission`. Once submitted, the document is automatically attached to the shipment at label-creation time. */
+  customsDocumentCarrierUploadFromFile: ZonosCarrierDocumentSubmission;
   /** Creates `CustomsDocument`s from existing files and attaches them to a `Shipment` or `CustomsSpec` */
   customsDocumentCreate: Array<ZonosCustomsDocument>;
   /** Generates `CustomsDocument`s from the given inputs */
@@ -10928,17 +15017,31 @@ export type ZonosMutation = {
   deleteClassifySetting: ZonosResult;
   /** Create a new `ExchangeRate` */
   exchangeRateCreate: Maybe<ZonosExchangeRate>;
+  /** Creates the `ExportClassificationSetting` for the current organization. Fails if one already exists. */
+  exportClassificationSettingCreate: ZonosExportClassificationSetting;
+  /** Updates the `ExportClassificationSetting` for the current organization. */
+  exportClassificationSettingUpdate: ZonosExportClassificationSetting;
+  /** Infer export-control classifications for the provided products and persist each result. */
+  exportClassificationsInfer: Array<ZonosExportClassification>;
   /** Computes Root-level compliance risk scores over the given items and parties. */
   greenLightWorkflow: ZonosGreenLight;
   /** Validates an HS code against a list of countries. */
   hsCodesValidate: Array<ZonosHsCodeValidationSummary>;
+  /** Creates one or more `InclusivePriceConfiguration` resources. */
+  inclusivePriceConfigurationsCreate: Array<ZonosInclusivePriceConfiguration>;
+  /** Updates one or more existing `InclusivePriceConfiguration` resources. */
+  inclusivePriceConfigurationsUpdate: Array<ZonosInclusivePriceConfiguration>;
   /** Create new `Items` */
   itemCreateWorkflow: Array<ZonosItem>;
+  /** @deprecated Use `restrictionApply` instead. */
   itemRestrictionApply: ZonosItemRestrictionResult;
+  /** @deprecated Use `restrictionApply` instead. */
   itemRestrictionApplyAI: ZonosItemRestrictionResult;
+  /** @deprecated Use `restrictionApply` instead. */
   itemRestrictionApplyEphemeral: ZonosItemRestrictionResult;
-  /** @deprecated use itemRestrictionResultsDelete */
+  /** @deprecated Being replaced by the `Restriction` schema. */
   itemRestrictionResultDelete: ZonosResult;
+  /** @deprecated Being replaced by the `Restriction` schema. */
   itemRestrictionResultsDelete: ZonosResult;
   /** Create new `Items`. */
   itemsCreate: Array<ZonosItem>;
@@ -10959,12 +15062,20 @@ export type ZonosMutation = {
   magentoScopeUpdate: Maybe<Array<Maybe<ZonosMagentoScope>>>;
   /** Creates a `Manifest`. */
   manifestCreate: ZonosManifest;
-  /** Creates a new `ManifestLine` on an existing `Manifest`. */
+  /** Creates a `ManifestLine` on an existing `Manifest`. */
   manifestLineCreate: ZonosManifestLine;
-  /** Creates new `ManifestLine`s on an existing `Manifest`. */
+  /** Creates `ManifestLine`s on an existing `Manifest`. */
   manifestLinesCreate: Array<ZonosManifestLine>;
+  /** Links existing unlinked `ManifestLine`s to a `Manifest`. BROKERAGE manifests validate stored origin and destination parties. */
+  manifestLinesLink: ZonosManifest;
   /** Updates an existing `Manifest`. */
   manifestUpdate: ZonosManifest;
+  /** Save one or more manufacturers (max 50). Refuses a name and address this organization already has. */
+  manufacturersCreate: Array<ZonosManufacturer>;
+  /** Delete saved manufacturers by id (max 100). Answers already given from one are left as they are. */
+  manufacturersDelete: ZonosResult;
+  /** Patch saved manufacturers (max 50). Only the fields supplied are overwritten. */
+  manufacturersUpdate: Array<ZonosManufacturer>;
   /** Add a note on an order */
   orderAddNote: Maybe<ZonosOrder>;
   /** Add a tracking number to an order */
@@ -10975,6 +15086,8 @@ export type ZonosMutation = {
   orderCreate: Maybe<ZonosOrder>;
   /** Delete a note on an order */
   orderDeleteNote: Maybe<ZonosOrder>;
+  /** Place an order on HOLD or release an existing hold. */
+  orderHoldUpdate: Maybe<ZonosOrder>;
   /**
    * Create an order from a legacy Zonos order
    * @deprecated Mutation no longer utilized
@@ -11024,18 +15137,37 @@ export type ZonosMutation = {
   pddpSettingsUpdate: ZonosPddpSettings;
   /** Create and submit a PDDP submission. */
   pddpSubmissionCreate: Array<ZonosPddpSubmission>;
-  rerunRestrictionsFromTests: Scalars['String'];
+  /** Submit one or more answers to a line of an in-progress session. Advances that line to its next required, visible, unanswered question; when none remain the line completes and a response is finalized (superseding any prior COMPLETE for the identity). The session itself completes only once every line is COMPLETED. */
+  questionnaireAnswersSubmit: ZonosQuestionnaireSession;
+  /** One-shot submit of all answers to a program's ACTIVE questionnaire for an item. Validates the answers against the version (no answer for a hidden question; every required visible question answered) and persists a COMPLETE response, superseding any prior COMPLETE response for the same (program, item, route). */
+  questionnaireResponseSubmit: ZonosQuestionnaireResponse;
+  /** Abandon an in-progress session. */
+  questionnaireSessionAbandon: ZonosQuestionnaireSession;
+  /** One-click accept of inference-prefilled lines: finalizes each eligible line (no required, currently-visible question unanswered) through the normal response path. The response provenance rolls up to INFERRED_ATTESTED when inferred answers survive untouched. */
+  questionnaireSessionAttest: ZonosQuestionnaireSession;
+  /**
+   * Run (or re-run) inference for an existing open CATALOG_ITEM session, from the item facts the catalog-item consumer snapshotted at event time. Catalog upload opens sessions WITHOUT inference (deferred spend); call this when the merchant opens the questionnaire page. Hash-guarded: when inference already ran for the item's current content, the session is returned untouched — no LLM spend, previously inferred answers undisturbed. Other container types keep using complianceQuestionnaireInfer (no snapshot exists for them). input.languageCode: the session is opened by a background consumer (item.catalog-item.events.changed) with no request context to seed a locale from, so this is the first point a merchant's actual language is known — pass it to render question/answer/option text accordingly. Falls back to Accept-Language, then English, same as complianceQuestionnaireInfer.
+   * @deprecated Merged into complianceQuestionnaireInfer, which now hydrates a CATALOG_ITEM container from the same snapshot when `items` is omitted. Pass {containerType: CATALOG_ITEM, containerId: <catalog item id>} instead of the session id — the container identifies the session. Will be removed once consumers have moved over.
+   */
+  questionnaireSessionInfer: ZonosComplianceQuestionnaireInferResult;
+  /** Start a wizard session for a grouping container, fanning out one line per (item, program) entry. */
+  questionnaireSessionStart: ZonosQuestionnaireSession;
+  /** Apply regulations to items. */
+  regulationsApply: ZonosRegulationResult;
   /** Apply restrictions to items. */
   restrictionApply: ZonosRestrictionResult;
   /** Creates a new `Root` */
   rootCreate: Maybe<ZonosRoot>;
-  runRestrictTest: Scalars['String'];
   /** @deprecated Use `shipmentBatchJobCreate` instead. */
   shipmentBulkCreate: Array<ZonosShipmentBulkCreateResult>;
   /** Creates a new `ShipmentConsolidation` from the given input. */
   shipmentConsolidationCreate: ZonosShipmentConsolidation;
+  /** Removes `Shipment`s from an `OPEN` `ShipmentConsolidation` so they can be assigned to a different one. Only permitted while the consolidation is `OPEN` — once the carrier order exists the membership is fixed at the carrier and can no longer be changed. No carrier call is made. */
+  shipmentConsolidationRemoveShipments: ZonosShipmentConsolidation;
   /** Updates a `ShipmentConsolidation` by adding a shipment, changing the status, or both. */
   shipmentConsolidationUpdate: ZonosShipmentConsolidation;
+  /** Voids an `OPEN` `ShipmentConsolidation`, detaching every member `Shipment` so they can be re-assigned. Only permitted while the consolidation is `OPEN`. No carrier call is made — this does not cancel anything with the carrier, because a batch that has been lodged cannot be voided here at all. */
+  shipmentConsolidationVoid: ZonosShipmentConsolidation;
   /** @deprecated Use `shipmentCreateWorkflow` instead. */
   shipmentCreate: Maybe<ZonosShipment>;
   shipmentCreateWithTracking: ZonosShipment;
@@ -11053,6 +15185,8 @@ export type ZonosMutation = {
   shipmentRatingCalculateWorkflow: Array<ZonosShipmentRating>;
   /** Allows an API consumer to create a `shipmentRating`. */
   shipmentRatingCreateWorkflow: Maybe<ZonosShipmentRating>;
+  /** Creates a `RETURN`-direction `Shipment`, buying its `Label` in the same request unless `generateLabel` is false. Carriers whose integration cannot express a return are refused rather than allowed to emit an outbound label from the reversed parties. Separate from `shipmentCreateWorkflow` because the input differs, not the flow — it runs the same workflow underneath. Parties and cartons come from the quoted `Root`, never from the outbound shipment: re-deriving either would let a parcel ship against addresses or dimensions that were not the ones priced. */
+  shipmentReturnCreateWorkflow: ZonosShipment;
   shipmentStatusUpdate: Maybe<ZonosShipment>;
   shipmentsCreateFromOrder: Array<ZonosShipment>;
   shortUrlsCreate: Array<ZonosShortUrl>;
@@ -11071,8 +15205,43 @@ export type ZonosMutation = {
   webhookCreate: Maybe<ZonosWebhook>;
   /** Deletes an existing `Webhook`. */
   webhookDelete: Maybe<ZonosResult>;
+  /** Sends a test webhook to the caller's enabled TEST-mode webhooks of the given type. Only TEST-mode credentials may call it, and only types with test support are accepted: today, `COMPLIANCE_COLLECT_REQUEST`. */
+  webhookTestSend: Maybe<ZonosWebhookTestSendResult>;
   /** Updates an existing `Webhook`. */
   webhookUpdate: Maybe<ZonosWebhook>;
+};
+
+
+export type ZonosMutationBrokerageDocumentAddReferencesArgs = {
+  id: Scalars['ID'];
+  references: Array<ZonosDocumentReferenceInput>;
+};
+
+
+export type ZonosMutationBrokerageDocumentStagedUploadArgs = {
+  input: ZonosBrokerageDocumentStagedUploadInput;
+};
+
+
+export type ZonosMutationBrokerageDocumentUploadArgs = {
+  input: ZonosBrokerageDocumentUploadInput;
+};
+
+
+export type ZonosMutationBrokerageDocumentUploadConfirmArgs = {
+  input: ZonosBrokerageDocumentUploadConfirmInput;
+};
+
+
+export type ZonosMutationBrokerageManifestCreateArgs = {
+  input: ZonosManifestInput;
+  lineIds: Array<Scalars['ID']>;
+};
+
+
+export type ZonosMutationBrokerageManifestLinesCreateArgs = {
+  input: Array<ZonosManifestLineInput>;
+  postalOperatorCode: InputMaybe<ZonosPostalOperatorCode>;
 };
 
 
@@ -11132,7 +15301,8 @@ export type ZonosMutationCartUpsertArgs = {
 
 
 export type ZonosMutationCartWorkflowArgs = {
-  id: Scalars['ID'];
+  id: InputMaybe<Scalars['ID']>;
+  input: InputMaybe<ZonosCartWorkflowInput>;
 };
 
 
@@ -11171,13 +15341,73 @@ export type ZonosMutationCatalogItemExportJobCreateArgs = {
 };
 
 
+export type ZonosMutationCatalogItemHsCodeCreateArgs = {
+  input: Array<ZonosCatalogItemHsCodeInput>;
+};
+
+
+export type ZonosMutationCatalogItemHsCodeDeleteArgs = {
+  input: Array<Scalars['ID']>;
+};
+
+
+export type ZonosMutationCatalogItemHsCodeUpdateArgs = {
+  input: Array<ZonosCatalogItemHsCodeUpdateInput>;
+};
+
+
 export type ZonosMutationCatalogItemUpdateArgs = {
   input: Array<ZonosCatalogItemInput>;
 };
 
 
+export type ZonosMutationCategoriesCreateArgs = {
+  input: Array<ZonosCategoryCreateInput>;
+};
+
+
+export type ZonosMutationCategoriesValidateArgs = {
+  input: Array<ZonosCategoryValidateInput>;
+};
+
+
+export type ZonosMutationCategoryDeleteArgs = {
+  id: Scalars['ID'];
+};
+
+
+export type ZonosMutationCategoryUpdateArgs = {
+  input: ZonosCategoryUpdateInput;
+};
+
+
+export type ZonosMutationChannelOrderCreateArgs = {
+  input: ZonosChannelOrderCreateInput;
+};
+
+
+export type ZonosMutationChannelOrderUpdateArgs = {
+  input: ZonosChannelOrderUpdateInput;
+};
+
+
 export type ZonosMutationCheckoutCustomerProfileAuthenticateArgs = {
   input: ZonosCheckoutCustomerProfileAuthenticateInput;
+};
+
+
+export type ZonosMutationCheckoutCustomerTaxExemptionsDeleteArgs = {
+  customerId: Scalars['String'];
+};
+
+
+export type ZonosMutationCheckoutCustomerTaxExemptionsSyncArgs = {
+  input: Array<ZonosCheckoutCustomerTaxExemptionSyncInput>;
+};
+
+
+export type ZonosMutationCheckoutCustomerUpsertArgs = {
+  input: ZonosCheckoutCustomerProfileInput;
 };
 
 
@@ -11247,6 +15477,26 @@ export type ZonosMutationCollectSubmissionUploadUrlGenerateArgs = {
 };
 
 
+export type ZonosMutationComplianceObligationsCopyAnswersArgs = {
+  input: ZonosComplianceObligationsCopyAnswersInput;
+};
+
+
+export type ZonosMutationComplianceObligationsRemediateArgs = {
+  input: ZonosComplianceObligationsRemediateInput;
+};
+
+
+export type ZonosMutationComplianceQuestionnaireAmendArgs = {
+  input: ZonosComplianceQuestionnaireAmendInput;
+};
+
+
+export type ZonosMutationComplianceQuestionnaireInferArgs = {
+  input: ZonosComplianceQuestionnaireInferInput;
+};
+
+
 export type ZonosMutationConsignmentAssignToConsolidationArgs = {
   consolidationId: Scalars['ID'];
   ids: Array<Scalars['ID']>;
@@ -11265,12 +15515,6 @@ export type ZonosMutationConsignmentRemoveFromConsolidationArgs = {
 
 export type ZonosMutationConsolidationCreateArgs = {
   input: ZonosConsolidationCreateInput;
-};
-
-
-export type ZonosMutationConsolidationFileArgs = {
-  id: Scalars['ID'];
-  input: ZonosConsolidationFileInput;
 };
 
 
@@ -11295,8 +15539,23 @@ export type ZonosMutationCustomerInvoiceFilesCreateArgs = {
 };
 
 
+export type ZonosMutationCustomsDescriptionValidateArgs = {
+  input: ZonosCustomsDescriptionValidationInput;
+};
+
+
 export type ZonosMutationCustomsDescriptionsCreateArgs = {
   input: Array<ZonosCustomsDescriptionsCreateInput>;
+};
+
+
+export type ZonosMutationCustomsDescriptionsValidateArgs = {
+  input: Array<ZonosCustomsDescriptionValidationInput>;
+};
+
+
+export type ZonosMutationCustomsDocumentCarrierUploadFromFileArgs = {
+  input: ZonosCustomsDocumentCarrierUploadFromFileInput;
 };
 
 
@@ -11365,6 +15624,22 @@ export type ZonosMutationExchangeRateCreateArgs = {
 };
 
 
+export type ZonosMutationExportClassificationSettingCreateArgs = {
+  input: ZonosExportClassificationSettingCreateInput;
+};
+
+
+export type ZonosMutationExportClassificationSettingUpdateArgs = {
+  input: ZonosExportClassificationSettingUpdateInput;
+};
+
+
+export type ZonosMutationExportClassificationsInferArgs = {
+  input: Array<ZonosExportClassificationInput>;
+  settingOverride: InputMaybe<ZonosExportClassificationSettingOverrideInput>;
+};
+
+
 export type ZonosMutationGreenLightWorkflowArgs = {
   input: ZonosGreenLightWorkflowInput;
 };
@@ -11372,6 +15647,16 @@ export type ZonosMutationGreenLightWorkflowArgs = {
 
 export type ZonosMutationHsCodesValidateArgs = {
   input: Array<ZonosHsCodeValidateInput>;
+};
+
+
+export type ZonosMutationInclusivePriceConfigurationsCreateArgs = {
+  input: Array<ZonosInclusivePriceConfigurationCreateInput>;
+};
+
+
+export type ZonosMutationInclusivePriceConfigurationsUpdateArgs = {
+  input: Array<ZonosInclusivePriceConfigurationUpdateInput>;
 };
 
 
@@ -11467,9 +15752,30 @@ export type ZonosMutationManifestLinesCreateArgs = {
 };
 
 
+export type ZonosMutationManifestLinesLinkArgs = {
+  lineIds: Array<Scalars['ID']>;
+  manifestId: Scalars['ID'];
+};
+
+
 export type ZonosMutationManifestUpdateArgs = {
   id: Scalars['ID'];
   input: ZonosManifestUpdateInput;
+};
+
+
+export type ZonosMutationManufacturersCreateArgs = {
+  input: Array<ZonosManufacturerCreateInput>;
+};
+
+
+export type ZonosMutationManufacturersDeleteArgs = {
+  input: ZonosManufacturersDeleteInput;
+};
+
+
+export type ZonosMutationManufacturersUpdateArgs = {
+  input: Array<ZonosManufacturerUpdateInput>;
 };
 
 
@@ -11496,6 +15802,11 @@ export type ZonosMutationOrderCreateArgs = {
 
 export type ZonosMutationOrderDeleteNoteArgs = {
   id: Scalars['ID'];
+};
+
+
+export type ZonosMutationOrderHoldUpdateArgs = {
+  input: ZonosOrderHoldUpdateInput;
 };
 
 
@@ -11619,18 +15930,43 @@ export type ZonosMutationPddpSubmissionCreateArgs = {
 };
 
 
-export type ZonosMutationRerunRestrictionsFromTestsArgs = {
-  input: ZonosRerunRestrictionsInput;
+export type ZonosMutationQuestionnaireAnswersSubmitArgs = {
+  input: ZonosQuestionnaireAnswersSubmitInput;
+};
+
+
+export type ZonosMutationQuestionnaireResponseSubmitArgs = {
+  input: ZonosQuestionnaireResponseSubmitInput;
+};
+
+
+export type ZonosMutationQuestionnaireSessionAbandonArgs = {
+  id: Scalars['ID'];
+};
+
+
+export type ZonosMutationQuestionnaireSessionAttestArgs = {
+  input: ZonosQuestionnaireSessionAttestInput;
+};
+
+
+export type ZonosMutationQuestionnaireSessionInferArgs = {
+  input: ZonosQuestionnaireSessionInferInput;
+};
+
+
+export type ZonosMutationQuestionnaireSessionStartArgs = {
+  input: ZonosQuestionnaireSessionStartInput;
+};
+
+
+export type ZonosMutationRegulationsApplyArgs = {
+  input: ZonosRegulationApplyInput;
 };
 
 
 export type ZonosMutationRestrictionApplyArgs = {
   input: ZonosRestrictionApplyInput;
-};
-
-
-export type ZonosMutationRunRestrictTestArgs = {
-  input: InputMaybe<ZonosRunRestrictTestInput>;
 };
 
 
@@ -11644,8 +15980,18 @@ export type ZonosMutationShipmentConsolidationCreateArgs = {
 };
 
 
+export type ZonosMutationShipmentConsolidationRemoveShipmentsArgs = {
+  input: ZonosShipmentConsolidationRemoveShipmentsInput;
+};
+
+
 export type ZonosMutationShipmentConsolidationUpdateArgs = {
   input: ZonosShipmentConsolidationUpdateInput;
+};
+
+
+export type ZonosMutationShipmentConsolidationVoidArgs = {
+  id: Scalars['ID'];
 };
 
 
@@ -11688,6 +16034,11 @@ export type ZonosMutationShipmentRatingCalculateWorkflowArgs = {
 
 export type ZonosMutationShipmentRatingCreateWorkflowArgs = {
   input: ZonosShipmentRatingCreateWorkflowInput;
+};
+
+
+export type ZonosMutationShipmentReturnCreateWorkflowArgs = {
+  input: ZonosShipmentReturnCreateWorkflowInput;
 };
 
 
@@ -11746,6 +16097,11 @@ export type ZonosMutationWebhookDeleteArgs = {
 };
 
 
+export type ZonosMutationWebhookTestSendArgs = {
+  input: ZonosWebhookTestSendInput;
+};
+
+
 export type ZonosMutationWebhookUpdateArgs = {
   input: ZonosWebhookUpdateInput;
 };
@@ -11792,6 +16148,7 @@ export type ZonosOnlineStoreSettingsUpdateInput = {
   url?: InputMaybe<Scalars['String']>;
 };
 
+/** Owned by OrderDgs. Extended here so a dispute is reachable from either side of the swap it caused. */
 export type ZonosOrder = {
   __typename?: 'Order';
   /** The order number from the `Organization`. */
@@ -11815,8 +16172,6 @@ export type ZonosOrder = {
   destinationCountryCode: Maybe<Scalars['String']>;
   /** Optional merchant-supplied grouping identifiers (e.g. container, pallet, batch). Multiple orders may share the same value, allowing them to be retrieved together. */
   externalGroupIds: Maybe<Array<Scalars['String']>>;
-  /** Whether the order has a pending modification payment that must be completed before fulfillment */
-  hasPendingModificationPayment: Scalars['Boolean'];
   /** A unique identifier for the Order. */
   id: Scalars['ID'];
   /** The `Items` that are included in the `Order`. */
@@ -11838,8 +16193,13 @@ export type ZonosOrder = {
   references: Maybe<Array<ZonosOrderReference>>;
   /** A List of refunds on the order */
   refunds: Maybe<Array<ZonosOrderRefund>>;
+  /** Links in both directions. Compare `sourceOrder.id` against this order's id to tell them apart: as the source, this order was replaced by (or combined into) the other; as the target, the reverse. */
+  relations: Array<ZonosOrderRelation>;
   /** List of remittances */
   remittance: Maybe<Array<Maybe<ZonosRemittance>>>;
+  /** Per-item return eligibility, computed with the same rules `orderReturnCreate` enforces. Intended as the single source of truth for return-selection UI: render directly off `returnableQuantity` rather than deriving it from `orderFulfillmentProgress`. Nullable by design — if the underlying fulfillment lookup fails this field resolves to null instead of failing the whole `order` query. Treat null as "eligibility unknown": do not offer returns. */
+  returnEligibility: Maybe<ZonosOrderReturnEligibility>;
+  returns: Array<ZonosOrderReturn>;
   root: Maybe<ZonosRoot>;
   /** The service level display name (denormalized for search performance). */
   serviceLevelDisplayName: Maybe<Scalars['String']>;
@@ -11858,6 +16218,12 @@ export type ZonosOrder = {
   updatedBy: Scalars['ID'];
   /** The Zonos order id is an ID that is shorter and easier to use than the UUID */
   zonosOrderId: Maybe<Scalars['String']>;
+};
+
+
+/** Owned by OrderDgs. Extended here so a dispute is reachable from either side of the swap it caused. */
+export type ZonosOrderRelationsArgs = {
+  type: InputMaybe<Array<ZonosOrderRelationType>>;
 };
 
 export type ZonosOrderAddTrackingNumberInput = {
@@ -11880,18 +16246,6 @@ export type ZonosOrderAmountFilter = {
   lessThan?: InputMaybe<Scalars['Decimal']>;
   /** Amount is less than or equal to this value */
   lessThanOrEqual?: InputMaybe<Scalars['Decimal']>;
-};
-
-export type ZonosOrderAmountSubtotalDetailsConnection = {
-  __typename?: 'OrderAmountSubtotalDetailsConnection';
-  edges: Array<ZonosOrderAmountSubtotalDetailsEdge>;
-  pageInfo: ZonosPageInfo;
-};
-
-export type ZonosOrderAmountSubtotalDetailsEdge = {
-  __typename?: 'OrderAmountSubtotalDetailsEdge';
-  cursor: Maybe<Scalars['String']>;
-  node: ZonosAmountDetail;
 };
 
 export type ZonosOrderCancelInput = {
@@ -11987,6 +16341,15 @@ export type ZonosOrderFulfillmentProgressResult = {
   notFulfilled: Array<ZonosFulfillmentItem>;
 };
 
+export type ZonosOrderHoldUpdateInput = {
+  /** When true, place the order on HOLD (from OPEN). When false, release the hold (HOLD -> OPEN). */
+  hold: Scalars['Boolean'];
+  /** The ID of the `Order` to update */
+  id: Scalars['ID'];
+  /** A note regarding the hold change */
+  note?: InputMaybe<Scalars['String']>;
+};
+
 export type ZonosOrderItemDetail = {
   __typename?: 'OrderItemDetail';
   /** The id of the item refunded */
@@ -12068,30 +16431,40 @@ export type ZonosOrderMetadataInput = {
 
 export type ZonosOrderModification = {
   __typename?: 'OrderModification';
-  /** The payable delta amount for this modification (positive = additional charge, negative = refund). */
+  /** The payable delta (positive = the shopper owes more, negative = a credit is owed). An audit snapshot of what was proposed; commit recomputes it. */
   amount: Maybe<Scalars['Decimal']>;
+  /** The cart backing the delta payment, if one has been created. */
+  cartId: Maybe<Scalars['ID']>;
+  /** The checkout session collecting the delta, if one has been created. */
+  checkoutSessionId: Maybe<Scalars['ID']>;
+  committedAt: Maybe<Scalars['DateTime']>;
+  committedBy: Maybe<Scalars['ID']>;
   createdAt: Scalars['DateTime'];
   createdBy: Scalars['ID'];
   /** The currency of the modification amount, in the order's currency. */
   currencyCode: Maybe<ZonosCurrencyCode>;
+  /** The landed cost the order was on when this was proposed. An audit snapshot, not authoritative: commit reads the order's current landed cost, and uses this only to detect that the order moved underneath the proposal. */
+  fromLandedCostId: Maybe<Scalars['ID']>;
   id: Scalars['ID'];
-  landedCostId: Scalars['ID'];
+  /** The charge that settled this modification. Null until committed by a payment. */
+  orderChargeId: Maybe<Scalars['ID']>;
   orderId: Scalars['ID'];
   status: ZonosOrderModificationStatus;
-};
-
-export type ZonosOrderModificationInput = {
-  landedCostId: Scalars['ID'];
-  orderId: Scalars['ID'];
+  /** The proposed landed cost, resolved. The complete preview of what committing would produce: items, parties and subtotals. */
+  toLandedCost: Maybe<ZonosLandedCost>;
+  /** The proposed landed cost. Authoritative — this is what commit applies. */
+  toLandedCostId: Maybe<Scalars['ID']>;
+  voidedAt: Maybe<Scalars['DateTime']>;
+  voidedBy: Maybe<Scalars['ID']>;
 };
 
 export type ZonosOrderModificationStatus =
-  /** Negative or zero delta, no additional payment needed */
-  | 'NO_PAYMENT_REQUIRED'
-  /** Delta payment received, billing completed */
-  | 'PAID'
-  /** Modification applied, awaiting delta payment */
-  | 'PENDING_PAYMENT';
+  /** The proposed landed cost has been applied to the order. Nothing was billed. */
+  | 'COMMITTED'
+  /** Proposed. The order is unchanged and nothing has been billed. */
+  | 'PENDING'
+  /** Abandoned before commit. Any checkout session collecting the delta was voided. */
+  | 'VOIDED';
 
 export type ZonosOrderNote = {
   __typename?: 'OrderNote';
@@ -12311,11 +16684,184 @@ export type ZonosOrderRefundSubtotalType =
   | 'SHIPPING'
   | 'STORE_CREDIT';
 
+/** A directed link between two orders. Read a row left to right: `sourceOrder <type> targetOrder`, so a `REPLACEMENT` row means the source order was replaced by the target order. */
+export type ZonosOrderRelation = {
+  __typename?: 'OrderRelation';
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  id: Scalars['ID'];
+  /** Conventionally the order that already existed. */
+  sourceOrder: ZonosOrder;
+  /** Conventionally the order that resulted. */
+  targetOrder: ZonosOrder;
+  type: ZonosOrderRelationType;
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+/** Filters for `orderRelations`. Every field is optional, list fields match any of their values, and fields combine with AND. */
+export type ZonosOrderRelationFilterInput = {
+  createdAfter?: InputMaybe<Scalars['DateTime']>;
+  createdBefore?: InputMaybe<Scalars['DateTime']>;
+  /** Match relations touching any of these orders on either side. Use this for "everything linked to this order" — passing one id to both `sourceOrderId` and `targetOrderId` ANDs into self-links only, and so always returns nothing. */
+  orderId?: InputMaybe<Array<Scalars['ID']>>;
+  /** Match relations pointing from any of these orders. */
+  sourceOrderId?: InputMaybe<Array<Scalars['ID']>>;
+  /** Match relations pointing to any of these orders. */
+  targetOrderId?: InputMaybe<Array<Scalars['ID']>>;
+  type?: InputMaybe<Array<ZonosOrderRelationType>>;
+};
+
+export type ZonosOrderRelationType =
+  /** The source order was combined into the target order. */
+  | 'COMBINATION'
+  /** The source order was replaced by the target order. */
+  | 'REPLACEMENT';
+
 export type ZonosOrderRemoveTrackingNumberInput = {
   /** The ID of the `Order` to update */
   id: Scalars['ID'];
   /** The main tracking number for the `order`. */
   trackingNumbers: Array<Scalars['String']>;
+};
+
+export type ZonosOrderReturn = {
+  __typename?: 'OrderReturn';
+  attachments: Array<ZonosOrderReturnAttachment>;
+  carrier: Maybe<Scalars['String']>;
+  createdAt: Scalars['DateTime'];
+  createdBy: Scalars['ID'];
+  customerNote: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  labelSource: ZonosOrderReturnLabelSource;
+  /** Only set for `EXTERNAL` labels, which have no Zonos shipment to read through. Null on `ZONOS_GENERATED` returns by design — a stored presigned URL expires. Read `shipment { shipmentCartons { label { url } } }` instead. */
+  labelUrl: Maybe<Scalars['String']>;
+  lines: Array<ZonosOrderReturnLine>;
+  linkedRefunds: Array<ZonosOrderRefund>;
+  merchantNote: Maybe<Scalars['String']>;
+  order: ZonosOrder;
+  /** The `Root` this return was quoted against. Supplies the parties and cartons the shipment is built from, so the parcel ships against what was priced. Null until quoted. */
+  rootId: Maybe<Scalars['ID']>;
+  /** The `ServiceLevel` accepted off that quote, as an ID or code. Required before a label can be created — otherwise the shipment inherits the outbound one's, often a carrier that cannot label. */
+  serviceLevel: Maybe<Scalars['String']>;
+  /** The `RETURN`-direction `Shipment` this return produced. Resolves live, so tracking and status reflect the carrier rather than what was true when the label was bought. The label lives under it — `shipment { shipmentCartons { label } }` — rather than being duplicated here, so it survives a void-and-reissue and its `url` cannot expire. */
+  shipment: Maybe<ZonosShipment>;
+  status: ZonosOrderReturnStatus;
+  statusTransitions: Array<ZonosOrderReturnStatusTransition>;
+  trackingNumber: Maybe<Scalars['String']>;
+  updatedAt: Scalars['DateTime'];
+  updatedBy: Scalars['ID'];
+};
+
+export type ZonosOrderReturnAttachment = {
+  __typename?: 'OrderReturnAttachment';
+  contentType: Scalars['String'];
+  description: Maybe<Scalars['String']>;
+  fileName: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  uploadedAt: Scalars['DateTime'];
+  uploadedBy: Scalars['ID'];
+  /** Short-lived presigned GET URL to the stored image, resolved on read. */
+  url: Scalars['String'];
+};
+
+/** A snapshot of what can be returned on an order, as of this read. Values are computed live from shipment data, so they can change between reads (for example, voiding a shipment reduces `returnableQuantity`). Always treat this as advisory for enabling UI and let `orderReturnCreate` be the authority. */
+export type ZonosOrderReturnEligibility = {
+  __typename?: 'OrderReturnEligibility';
+  /** Whether a return can be created on this order at all. When false, every item's `returnableQuantity` is 0. */
+  eligible: Scalars['Boolean'];
+  /** Why the order is ineligible. Null when `eligible` is true. */
+  ineligibleReason: Maybe<ZonosOrderReturnIneligibleReason>;
+  /** One entry per item on the order, including items with nothing returnable. */
+  items: Array<ZonosOrderReturnableItem>;
+};
+
+export type ZonosOrderReturnFilterInput = {
+  createdAfter?: InputMaybe<Scalars['DateTime']>;
+  createdBefore?: InputMaybe<Scalars['DateTime']>;
+  orderId?: InputMaybe<Scalars['ID']>;
+  status?: InputMaybe<Array<ZonosOrderReturnStatus>>;
+  trackingNumber?: InputMaybe<Scalars['String']>;
+};
+
+export type ZonosOrderReturnIneligibleReason =
+  /** Origin and destination must match and be a country returns are enabled for. Stricter than landed cost, which counts EU to EU as domestic. */
+  | 'NOT_DOMESTIC'
+  /** Nothing on the order has shipped yet, so there is nothing to return. */
+  | 'NOT_FULFILLED';
+
+export type ZonosOrderReturnLabelSource =
+  | 'EXTERNAL'
+  | 'NONE'
+  | 'ZONOS_GENERATED';
+
+export type ZonosOrderReturnLine = {
+  __typename?: 'OrderReturnLine';
+  disposition: Maybe<ZonosOrderReturnLineDisposition>;
+  id: Scalars['ID'];
+  itemId: Scalars['ID'];
+  note: Maybe<Scalars['String']>;
+  quantity: Scalars['Int'];
+  reason: ZonosOrderReturnLineReason;
+};
+
+export type ZonosOrderReturnLineDisposition =
+  | 'DAMAGED'
+  | 'DESTROY'
+  | 'RESTOCK';
+
+export type ZonosOrderReturnLineReason =
+  | 'CHANGED_MIND'
+  | 'DAMAGED_IN_TRANSIT'
+  | 'DEFECTIVE'
+  | 'NOT_AS_DESCRIBED'
+  | 'OTHER'
+  | 'WRONG_ITEM';
+
+export type ZonosOrderReturnLineSnapshot = {
+  __typename?: 'OrderReturnLineSnapshot';
+  disposition: Maybe<ZonosOrderReturnLineDisposition>;
+  itemId: Scalars['ID'];
+  lineId: Scalars['ID'];
+  note: Maybe<Scalars['String']>;
+  quantity: Scalars['Int'];
+  reason: ZonosOrderReturnLineReason;
+};
+
+export type ZonosOrderReturnStatus =
+  | 'APPROVED'
+  | 'CANCELED'
+  | 'COMPLETED'
+  | 'INSPECTED'
+  | 'IN_TRANSIT'
+  | 'LABEL_ISSUED'
+  | 'RECEIVED'
+  | 'REJECTED'
+  | 'REQUESTED';
+
+export type ZonosOrderReturnStatusTransition = {
+  __typename?: 'OrderReturnStatusTransition';
+  actor: Scalars['ID'];
+  createdAt: Scalars['DateTime'];
+  fromStatus: Maybe<ZonosOrderReturnStatus>;
+  id: Scalars['ID'];
+  lineSnapshot: Array<ZonosOrderReturnLineSnapshot>;
+  note: Maybe<Scalars['String']>;
+  toStatus: ZonosOrderReturnStatus;
+};
+
+export type ZonosOrderReturnableItem = {
+  __typename?: 'OrderReturnableItem';
+  /** Quantity that has actually shipped. */
+  fulfilledQuantity: Scalars['Int'];
+  /** The order item. Only `id` is resolved by this service; other fields come from the owning subgraph. */
+  item: ZonosItem;
+  /** Quantity originally ordered. */
+  orderedQuantity: Scalars['Int'];
+  /** Maximum quantity `orderReturnCreate` will currently accept for this item (`fulfilledQuantity` - `returnedQuantity`, floored at 0, and always 0 when the order is ineligible). An item is selectable in the UI when this is greater than 0. */
+  returnableQuantity: Scalars['Int'];
+  /** Quantity already claimed by returns that are not REJECTED or CANCELED. */
+  returnedQuantity: Scalars['Int'];
 };
 
 export type ZonosOrderSearchFilter = {
@@ -12539,6 +17085,8 @@ export type ZonosOrganizationType =
   | 'MARKETPLACE_SELLER'
   /** Typical e-commerce store. This is the type most analogous to a legacy Store object. */
   | 'ONLINE_STORE'
+  /** E-commerce store onboarded through the FedEx partnership. Behaves like ONLINE_STORE. */
+  | 'ONLINE_STORE_FEDEX'
   /** General customer which doesn’t fall into any other type. */
   | 'OTHER'
   /** General partner which doesn’t fall into any other type. */
@@ -12572,6 +17120,7 @@ export type ZonosOrganizationVendor = {
   name: Scalars['String'];
   /** Object containing address information for the vendors primary contact and address. */
   party: ZonosParty;
+  testAccountKey: Scalars['String'];
   /** Type of `Organization`. For `OrganizationVendor` this will be `PLATFORM_VENDOR` by default. */
   type: ZonosOrganizationType;
   /** Timestamp of when this `OrganizationVendor` was last updated. */
@@ -12582,11 +17131,38 @@ export type ZonosOrganizationVendor = {
   vendorExternalId: Scalars['String'];
 };
 
+/** A child account of the calling partner `Organization`, as returned by `organizationVendors`. */
+export type ZonosOrganizationVendorAccount = {
+  __typename?: 'OrganizationVendorAccount';
+  /** Public credential of the child `Organization` for the requested `mode`. */
+  accountKey: Scalars['String'];
+  /** The first external value set on this partner relationship, if any. See `externalValues` for all of them. */
+  externalValue: Maybe<Scalars['String']>;
+  /** Every external key/value pair set on this partner relationship. */
+  externalValues: Array<ZonosOrganizationVendorExternalValue>;
+  /** Unique identifier of the child `Organization`. */
+  id: Scalars['ID'];
+  /** Business name of the child `Organization`. */
+  name: Scalars['String'];
+};
+
+export type ZonosOrganizationVendorConnection = {
+  __typename?: 'OrganizationVendorConnection';
+  /** A list of `Edges`. */
+  edges: Array<ZonosOrganizationVendorEdge>;
+  /** Pagination information about the connection. */
+  pageInfo: ZonosPageInfo;
+  /** The total count of records. */
+  totalCount: Scalars['Int'];
+};
+
 export type ZonosOrganizationVendorCreateInput = {
   /** The primary shipping address for the vendor. */
   accountAddress: ZonosVendorAddressInput;
-  /** The primary users information for the vendor. */
+  /** The primary users information for the vendor. This user is granted ADMIN access to the vendor organization. */
   accountUser: ZonosVendorUserInput;
+  /** Additional users to grant access to the vendor organization. */
+  additionalUsers?: InputMaybe<Array<ZonosVendorAdditionalUserInput>>;
   /** Name of the vendor. */
   businessName: Scalars['String'];
   /** URL to the vendors website. */
@@ -12597,6 +17173,40 @@ export type ZonosOrganizationVendorCreateInput = {
   defaultHsCode?: InputMaybe<Scalars['String']>;
   /** External ID associated with the vendor. */
   vendorExternalId: Scalars['String'];
+};
+
+export type ZonosOrganizationVendorEdge = {
+  __typename?: 'OrganizationVendorEdge';
+  /** A string used to identify this object in the current pagination connection. */
+  cursor: Maybe<Scalars['String']>;
+  /** The object located at this `Edge`. */
+  node: Maybe<ZonosOrganizationVendorAccount>;
+};
+
+/** An external key/value pair a child `Organization` has set for its partner. */
+export type ZonosOrganizationVendorExternalValue = {
+  __typename?: 'OrganizationVendorExternalValue';
+  /** The name of the external key, as defined by the partner. */
+  externalKey: Scalars['String'];
+  /** The value the child has set for that key. */
+  externalValue: Scalars['String'];
+};
+
+/** Matches children that have one of `externalValues` set for the external key named `externalKey`. */
+export type ZonosOrganizationVendorExternalValueFilter = {
+  /** The name of the external key, as defined by the partner. */
+  externalKey: Scalars['String'];
+  /** The values to match. A child matches when its value for `externalKey` is any one of these. */
+  externalValues: Array<Scalars['String']>;
+};
+
+export type ZonosOrganizationVendorFilter = {
+  /** Restrict the result to children whose external values match. A child must match every entry; within an entry, any one of the listed values matches. Values are compared ignoring case and surrounding whitespace. */
+  externalValues?: InputMaybe<Array<ZonosOrganizationVendorExternalValueFilter>>;
+  /** Which public credential to return as `accountKey`. Defaults to `LIVE`. */
+  mode?: InputMaybe<ZonosMode>;
+  /** Restrict the result to these child `Organization` ids. */
+  vendorOrganizationIds?: InputMaybe<Array<Scalars['ID']>>;
 };
 
 /** A `packagingOption` represents a box that can be used to ship an item */
@@ -12654,7 +17264,7 @@ export type ZonosPackagingOptionBulkExportJob = {
   createdAt: Scalars['DateTime'];
   /** The user who created the PackagingOptionBulkExportJob. */
   createdBy: Scalars['ID'];
-  /** The S3 url where packaging options are written to */
+  /** Short-lived download URL minted on each read; null until the job is COMPLETED. */
   exportUrl: Maybe<Scalars['String']>;
   /** The ID of the PackagingOptionBulkExportJob */
   id: Scalars['ID'];
@@ -12770,10 +17380,6 @@ export type ZonosPackagingOptionCreateInput = {
   width: Scalars['Decimal'];
 };
 
-export type ZonosPackagingOptionDeleteAction =
-  | 'DELETE'
-  | 'DISABLE';
-
 /** A type used in pagination. */
 export type ZonosPackagingOptionEdge = {
   __typename?: 'PackagingOptionEdge';
@@ -12788,7 +17394,7 @@ export type ZonosPackagingOptionSource =
   | 'DYNAMIC'
   /** These packaging options are supported by most carriers */
   | 'GENERAL'
-  /** This packging option is for kits */
+  /** This packaging option is for kits */
   | 'KIT'
   | 'ORGANIZATION'
   /** These packaging options are to run through simulations */
@@ -12865,17 +17471,37 @@ export type ZonosPackingConfiguration = {
   __typename?: 'PackingConfiguration';
   /** The unique identifier for this packing configuration */
   id: Scalars['ID'];
+  /** The box in a bundle this item is assigned to. */
+  packageOptionId: Maybe<Scalars['ID']>;
+  /** Index identifying the specific package option instance within a bundle. */
+  packageOptionIdIndex: Maybe<Scalars['String']>;
+  /** The packing preference for this item (e.g. ASSIGNED_BOX for bundle items). */
+  packingPreference: Maybe<ZonosPackingPreference>;
   /** how / why the item should be stacked */
   stackConfiguration: Maybe<ZonosStackConfiguration>;
 };
 
 export type ZonosPackingConfigurationInput = {
+  /** The box in a bundle this item is assigned to. */
+  packageOptionId?: InputMaybe<Scalars['ID']>;
+  /** Index identifying the specific package option instance within a bundle. */
+  packageOptionIdIndex?: InputMaybe<Scalars['String']>;
+  /** The packing preference for this item (e.g. ASSIGNED_BOX for bundle items). */
+  packingPreference?: InputMaybe<ZonosPackingPreference>;
   /** How the item should be stacked */
   stackConfiguration?: InputMaybe<ZonosStackConfigurationInput>;
 };
 
+export type ZonosPackingGroup =
+  /** High danger. */
+  | 'I'
+  /** Medium danger. */
+  | 'II'
+  /** Low danger. */
+  | 'III';
+
 export type ZonosPackingPreference =
-  /** This item is in a kit assigned to a box */
+  /** This item is in a bundle assigned to a box */
   | 'ASSIGNED_BOX'
   /** The item can be shipped with other items in a box */
   | 'CONSOLIDATED'
@@ -12955,10 +17581,16 @@ export type ZonosPackingSlipSettings = ZonosNode & {
   logoUrl: Maybe<Scalars['String']>;
   /** The page size for packing slips */
   pageSize: ZonosPackingSlipPageSize;
+  /** Whether packing slips should be printed by default when creating labels */
+  printWithLabels: Scalars['Boolean'];
+  /** Whether to show the organization's company name on packing slips */
+  showCompanyName: Scalars['Boolean'];
   /** Whether to show item images on packing slips */
   showItemImages: Scalars['Boolean'];
   /** Whether to show item prices on packing slips */
   showItemPrices: Scalars['Boolean'];
+  /** Whether to show the organization's logo on packing slips */
+  showLogo: Scalars['Boolean'];
   /** Whether to show the order total on packing slips */
   showOrderTotal: Scalars['Boolean'];
 };
@@ -12980,10 +17612,16 @@ export type ZonosPackingSlipSettingsUpdateInput = {
   logoUrl?: InputMaybe<Scalars['String']>;
   /** The page size for packing slips */
   pageSize?: InputMaybe<ZonosPackingSlipPageSize>;
+  /** Whether packing slips should be printed by default when creating labels */
+  printWithLabels?: InputMaybe<Scalars['Boolean']>;
+  /** Whether to show the organization's company name on packing slips */
+  showCompanyName?: InputMaybe<Scalars['Boolean']>;
   /** Whether to show item images on packing slips */
   showItemImages?: InputMaybe<Scalars['Boolean']>;
   /** Whether to show item prices on packing slips */
   showItemPrices?: InputMaybe<Scalars['Boolean']>;
+  /** Whether to show the organization's logo on packing slips */
+  showLogo?: InputMaybe<Scalars['Boolean']>;
   /** Whether to show the order total on packing slips */
   showOrderTotal?: InputMaybe<Scalars['Boolean']>;
 };
@@ -13168,13 +17806,22 @@ export type ZonosPartyScreeningSetting = {
   /** Default value is EXACT_LOCALITY */
   addressMatchThreshold: Maybe<ZonosAddressMatchThreshold>;
   id: Scalars['ID'];
+  /** Minimum location score for a match to require REVIEW. No minimum when null. */
+  locationScoreThreshold: Maybe<Scalars['Decimal']>;
   /** Default value is 0.8 */
   nameMatchDecisionThreshold: Maybe<Scalars['Decimal']>;
+  /** Minimum name score for a match to require REVIEW. No minimum when null. */
+  nameScoreThreshold: Maybe<Scalars['Decimal']>;
+  /** Minimum overall score for a match to require REVIEW. No minimum when null. */
+  overallScoreThreshold: Maybe<Scalars['Decimal']>;
 };
 
 export type ZonosPartyScreeningSettingInput = {
   addressMatchThreshold?: InputMaybe<ZonosAddressMatchThreshold>;
+  locationScoreThreshold?: InputMaybe<Scalars['Decimal']>;
   nameMatchDecisionThreshold?: InputMaybe<Scalars['Decimal']>;
+  nameScoreThreshold?: InputMaybe<Scalars['Decimal']>;
+  overallScoreThreshold?: InputMaybe<Scalars['Decimal']>;
 };
 
 /** Enumeration for the different types of parties. */
@@ -13195,6 +17842,8 @@ export type ZonosPartyType =
   | 'PAYEE'
   /** Represents the payor party. */
   | 'PAYOR'
+  /** Represents the port of entry where the shipment clears customs. */
+  | 'PORT_OF_ENTRY'
   /** Represents the ultimate consignee party. */
   | 'ULTIMATE_CONSIGNEE';
 
@@ -13395,12 +18044,16 @@ export type ZonosPddpSubmission = ZonosNode & {
   destinationPost: Scalars['String'];
   /** The ID of the submission */
   id: Scalars['ID'];
+  /** The ID of the `LandedCost` used to build this submission */
+  landedCostId: Maybe<Scalars['ID']>;
   /** The ID of the `Order` this submission is associated with */
-  orderId: Scalars['ID'];
+  orderId: Maybe<Scalars['ID']>;
   /** The origin postal operator, UPU Code */
   originPost: Maybe<Scalars['String']>;
   /** The PDDP transaction identifier */
   pddpTransactionIdentifier: Maybe<Scalars['String']>;
+  /** The ID of the `Root` used to build this submission */
+  rootId: Maybe<Scalars['ID']>;
   /** The ID of the associated `Shipment` */
   shipmentId: Scalars['ID'];
   /** The tracking number of the submission */
@@ -13424,6 +18077,10 @@ export type ZonosPddpSubmissionConnection = {
 export type ZonosPddpSubmissionCreateInput = {
   /** The ID of the associated IPC Retailer, if not given Zonos' ID will be used */
   ipcRetailerId?: InputMaybe<Scalars['String']>;
+  /** Required with rootId when the Shipment has no Order */
+  landedCostId?: InputMaybe<Scalars['ID']>;
+  /** Required with landedCostId when the Shipment has no Order */
+  rootId?: InputMaybe<Scalars['ID']>;
   /** The ID of the associated `Shipment` */
   shipmentId: Scalars['ID'];
 };
@@ -13443,10 +18100,14 @@ export type ZonosPddpSubmissionFilter = {
   createdDate?: InputMaybe<ZonosDateTimeRange>;
   /** The destination postal operator, UPU Code */
   destinationPost?: InputMaybe<Scalars['String']>;
+  /** The ID of the `LandedCost` used to construct the PDDP submission */
+  landedCostId?: InputMaybe<Scalars['ID']>;
   /** The ID of the `Order` the PDDP submission is associated with */
   orderId?: InputMaybe<Scalars['ID']>;
   /** The PDDP transaction identifier */
   pddpTransactionIdentifier?: InputMaybe<Scalars['String']>;
+  /** The ID of the `Root` used to construct the PDDP submission */
+  rootId?: InputMaybe<Scalars['ID']>;
   /** The ID of the `Shipment` the PddpSubmission is tied to */
   shipmentId?: InputMaybe<Scalars['ID']>;
   /** The tracking number of the submission */
@@ -14070,6 +18731,8 @@ export type ZonosProductUrlScrapedData = {
   __typename?: 'ProductUrlScrapedData';
   /** The category hierarchy scraped from the productUrl. */
   categories: Maybe<Array<Scalars['String']>>;
+  /** The ISO 4217 currency code for the scraped unitPrice (e.g., USD). */
+  currencyCode: Maybe<Scalars['String']>;
   /** The product description scraped from the productUrl. */
   description: Maybe<Scalars['String']>;
   /** The image URL scraped from the productUrl. */
@@ -14078,7 +18741,27 @@ export type ZonosProductUrlScrapedData = {
   material: Maybe<Scalars['String']>;
   /** The product name scraped from the productUrl. */
   name: Maybe<Scalars['String']>;
+  /** The unit price scraped from the productUrl, in currencyCode. */
+  unitPrice: Maybe<Scalars['Float']>;
 };
+
+/** Filter for a program's HS-code triggers. */
+export type ZonosProgramHsCodeTriggerFilter = {
+  hsCode?: InputMaybe<Scalars['String']>;
+  hsCodePrefix?: InputMaybe<Scalars['String']>;
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+export type ZonosProgramStatus =
+  | 'ACTIVE'
+  | 'DEPRECATED'
+  /** Newly created, not yet published — invisible to runtime surfaces. */
+  | 'DRAFT';
+
+export type ZonosProgramStrictness =
+  | 'CONDITIONAL'
+  | 'REQUIRED';
 
 /** Contains proof of delivery information from the carrier if available, which may include signature images, recipient names, and/or proof of delivery documents. */
 export type ZonosProofOfDelivery = {
@@ -14124,6 +18807,12 @@ export type ZonosProvidedHsCodeVisibilityStatus =
 /** interface Node { id: ID! } */
 export type ZonosQuery = {
   __typename?: 'Query';
+  /** Green Book approvals matching an animal drug's trade name (typeahead), for the animal drug approval affirmation. A filer types the name on the package and accepts a match to fill in the NADA or ANADA number, which is printed nowhere on the product. The sponsor and active ingredient match the same term, since they are alternative ways of naming the same product and a filer reading a package does not know which they are looking at. Matching is substring and case-insensitive; returns empty for a term shorter than two characters. */
+  animalDrugApprovalSuggest: Array<ZonosAnimalDrugApprovalSuggestion>;
+  /** Candidate answers for one REFERENCE question. Which registry serves it, and how the line's other answers scope the search, are read server-side from `optionsSource`; empty when there is no match. */
+  answerSuggest: ZonosAnswerSuggestionConnection;
+  /** Purple Book entries matching a biological product's name (typeahead), for the BLN and STN affirmations. Brand name, proper name and licence holder all match the term. Substring and case-insensitive; empty for a term shorter than two characters. */
+  biologicLicenseSuggest: Array<ZonosBiologicLicenseSuggestion>;
   /** Returns a `Carrier` resource by ID. */
   carrier: Maybe<ZonosCarrier>;
   /** Returns a `CarrierAccount` by ID */
@@ -14140,12 +18829,16 @@ export type ZonosQuery = {
   carrierInvoiceAccountNumberMapping: Maybe<ZonosCarrierInvoiceAccountNumberMapping>;
   /** Retrieve `CarrierInvoiceAccountNumberMappingConnection`s based on a `CarrierInvoiceAccountNumberMappingFilter` criteria */
   carrierInvoiceAccountNumberMappings: ZonosCarrierInvoiceAccountNumberMappingConnection;
+  /** What the named carriers can produce a label for, **for the calling organization**. Integration capability, not merchant configuration — a carrier reports a `RETURN_*` type only once its request builder emits a return request. Callers quoting a return should join this against their rates by carrier name and drop the rest; `labelCreate` refuses an unsupported combination anyway, so filtering here is about not offering a dead end. Organization-scoped, so **do not cache globally** — a carrier's capability can depend on which integration that organization's account uses. */
+  carrierLabelCapabilities: Array<ZonosCarrierLabelCapability>;
   /** Returns available carrier packaging types with their dimensions and weight limits. */
   carrierPackagingTypes: Array<ZonosCarrierPackagingType>;
   /** Returns a list of `Carrier` resources by ID. */
   carriers: Maybe<Array<Maybe<ZonosCarrier>>>;
   /** Returns an `Cart` resource by ID. */
   cart: Maybe<ZonosCart>;
+  /** Returns the most recent `Cart` that references the given landed cost ID (matched against the cart's references). Null when no cart references it. Used to resolve a collect quote's payment deadline (cart expiration). */
+  cartByLandedCostId: Maybe<ZonosCart>;
   /** Returns a `Carton` resource by `ID` */
   carton: Maybe<ZonosCarton>;
   /** Query for the CartonizationSettings associated with the callers organization */
@@ -14166,6 +18859,20 @@ export type ZonosQuery = {
   catalogItemExportJobs: Maybe<ZonosExportJobConnection>;
   /** Returns a list of `CatalogItem`. */
   catalogItems: Maybe<ZonosCatalogItemConnection>;
+  /** Backward-compatible catalog attention queue. Returns distinct catalog items with at least one non-current compliance obligation, even when no questionnaire session has been opened yet. Each result is a federated CatalogItem, allowing its owner to supply name, SKU, and image. Results are ordered by the newest obligation update. New integrations should query complianceObligations. */
+  catalogItemsWithOpenQuestionnaire: ZonosCatalogItemOpenQuestionnaireConnection;
+  /** List the organization's `Category` universe. */
+  categories: Maybe<ZonosCategoryConnection>;
+  /** Fetch a single `Category` from the organization's universe by id. */
+  category: Maybe<ZonosCategory>;
+  /** Fetch a previously calculated `CategoryValidation` by id. */
+  categoryValidation: Maybe<ZonosCategoryValidation>;
+  /** List the organization's previously calculated `CategoryValidation` records (newest first). */
+  categoryValidations: Maybe<ZonosCategoryValidationConnection>;
+  /** Returns the CBP exchange rate effective at the end of `input.day`'s calendar day (in `day`'s own offset) per currency. Merges active and archived history rows per currency; active wins when both exist. Rate is in foreign-per-1-USD to match `updateCbpExchangeRateEX */
+  cbpExchangeRates: Array<ZonosExchangeRate>;
+  /** Returns the tax exemptions on record for a customer. */
+  checkoutCustomerTaxExemptions: Array<ZonosCheckoutCustomerTaxExemption>;
   /** Returns a `CheckoutSession` by ID. */
   checkoutSession: ZonosCheckoutSession;
   /** Returns a `CheckoutSession` by LandedCost ID. */
@@ -14188,14 +18895,22 @@ export type ZonosQuery = {
   /** Query a `CollectUploadEvent` object by ID */
   collectUploadEvent: ZonosCollectUploadEvent;
   collectUploadEvents: ZonosCollectUploadEventConnection;
-  /** Returns a consignment by ID. */
+  /** Questionnaire release campaigns affecting the current merchant. */
+  complianceCampaigns: ZonosComplianceCampaignConnection;
+  /** Durable catalog-item compliance work, independent from active questionnaire sessions. */
+  complianceObligations: ZonosComplianceObligationConnection;
+  /** List compliance requirements filtered by program type, HS code, and ship-to/from country. Paginated; archived excluded. */
+  complianceRequirements: ZonosComplianceRequirementConnection;
+  /** Returns a consignment by ID. Org-scoped to the caller's session. */
   consignment: Maybe<ZonosConsignment>;
-  /** Returns a paginated list of consignments. */
+  /** Returns a paginated list of consignments. Org-scoped to the caller's session. */
   consignments: ZonosConsignmentConnection;
-  /** Returns a consolidation by ID. */
+  /** Returns a consolidation by ID, scoped to the caller's organization. */
   consolidation: Maybe<ZonosConsolidation>;
-  /** Returns a paginated list of consolidations. */
+  /** Returns a paginated list of consolidations belonging to the caller's organization. Filter and sort for master-level tracking views; query `entries` for the entries filed under them. */
   consolidations: ZonosConsolidationConnection;
+  /** All-or-nothing compliance readiness for a grouping container, computed from its session lines. */
+  containerComplianceReadiness: ZonosContainerComplianceReadiness;
   /** Get the field labels for a country */
   countryFieldLabel: ZonosCountryFieldLabel;
   /** Returns a `CountryOfOriginInference` resource by ID. */
@@ -14208,6 +18923,10 @@ export type ZonosQuery = {
   countryOfOriginJobs: ZonosCountryOfOriginJobConnection;
   /** Returns a `CurrencyFormat` resource by CurrencyCode */
   currencyFormat: Maybe<ZonosCurrencyFormat>;
+  /** Returns a `CustomsDescriptionValidation` resource by ID. */
+  customsDescriptionValidation: Maybe<ZonosCustomsDescriptionValidation>;
+  /** Returns a list of `CustomsDescriptionValidation` resources, most recent first. */
+  customsDescriptionValidations: Maybe<ZonosCustomsDescriptionValidationConnection>;
   /** Query for a CustomsDocument by ID */
   customsDocument: Maybe<ZonosCustomsDocument>;
   /** Query for a paginated connection of CustomsDocuments */
@@ -14228,33 +18947,56 @@ export type ZonosQuery = {
   declarationById: Maybe<ZonosDeclaration>;
   /** Query for a `Declaration` by a specified filter */
   declarationFiltered: Maybe<ZonosDeclaration>;
+  declarationPreClearance: Maybe<ZonosDeclaration>;
   /** Retrieve a list of `Declaration` objects */
   declarations: Maybe<ZonosDeclarationConnection>;
+  /** Registered FDA device establishments whose firm name contains what the filer has typed so far (typeahead), for the DEV and DFE affirmations. A filer types the manufacturer or exporter named on the device and accepts a match to fill in the registration number, which they would otherwise have to obtain from that firm. `filter.role` picks which party the question names, and `filter.productCode` (the line's FDA product code) narrows a large firm's many registered sites to the ones that actually list this device. Matching is substring and case-insensitive; returns empty for a term shorter than two characters. */
+  deviceEstablishmentSuggest: Array<ZonosDeviceEstablishmentSuggestion>;
+  /** Whether a premarket number can exist for an FDA device product code, from FDA's classification file. 510(k)-exempt codes have no premarket number to give, so PM# should not be asked on them at all; on a code that requires 510(k) or PMA the answer is guaranteed to exist and is worth insisting on. Null when the product code is not in FDA's classification file. */
+  devicePremarketRequirement: Maybe<ZonosDevicePremarketRequirement>;
+  /** Premarket (510(k)/PMA) numbers FDA publishes against a device product code, for the PM# affirmation. FDA's spec wants the number that is on the listing record, so these come from the listing itself rather than from a premarket search: pass `registrationNumber` once the filer has named the firm to get that firm's numbers, or a name fragment in `term` to offer candidates before they have. Empty where FDA publishes none — check `devicePremarketRequirement` first, since on an exempt product code no number exists. */
+  devicePremarketSuggest: Array<ZonosDevicePremarketSuggestion>;
+  /** Registered FDA drug establishments whose firm name contains what the filer has typed so far (typeahead), for the manufacturer question that feeds the REG affirmation. They type the manufacturer named on the package and accept a match to fill in the registration number REG asks for, which is published nowhere they could look it up. Only sites registered for a manufacturing operation are offered — the usual party for an imported drug, though CATAIR requires REG of the registered establishment without restricting it to manufacturers. Matching is substring and case-insensitive; returns empty for fewer than two characters. */
+  drugEstablishmentSuggest: Array<ZonosDrugEstablishmentSuggestion>;
+  /** Listed FDA drug products whose brand or generic name contains what the filer has typed (typeahead), for the trade-name question that feeds the DLS and DA affirmations. Each match carries its packages, because DLS is filed from the package code rather than the product's and a merchant ships a particular pack size. Matching is substring and case-insensitive; returns empty for fewer than two characters. */
+  drugProductSuggest: Array<ZonosDrugProductSuggestion>;
+  /** Returns a paginated list of entries belonging to the caller's organization. Filter by `clearanceStatus` for entries on hold; select only `totalCount` for a count without fetching rows. */
+  entries: ZonosEntryConnection;
   /** Returns an `ExchangeRate` resource by ID. */
   exchangeRate: Maybe<ZonosExchangeRate>;
+  /** Returns a persisted `ExportClassification` by ID. */
+  exportClassification: Maybe<ZonosExportClassification>;
+  /** Obtains the `ExportClassificationSetting` for the current organization context. */
+  exportClassificationSetting: Maybe<ZonosExportClassificationSetting>;
+  /** Returns a paginated list of persisted `ExportClassification` resources. */
+  exportClassifications: Maybe<ZonosExportClassificationConnection>;
   /** Returns an `ExtractedItem` resource by ID. */
   extractedItem: Maybe<ZonosExtractedItem>;
   /** Returns a `FulfillmentCenter` object by ID. */
   fulfillmentCenter: Maybe<ZonosFulfillmentCenter>;
   /** Returns a list of `FulfillmentCenter` objects for an `Organization` */
   fulfillmentCenters: Maybe<Array<ZonosFulfillmentCenter>>;
-  generateInsertableCsvs: Scalars['String'];
-  generateSQLFilesForTesting: Scalars['String'];
   /** Retrieves a person by their unique identifier. */
   getPerson: Maybe<ZonosPerson>;
   /** Returns a previously computed `GreenLight` by ID. */
   greenLight: Maybe<ZonosGreenLight>;
   /** Returns a paginated list of previously computed `GreenLight` audits. */
   greenLights: ZonosGreenLightConnection;
-  /** Returns a handling unit by ID. */
-  handlingUnit: Maybe<ZonosHandlingUnit>;
   /** Returns `HelloSettings` associated with the current token's `Organization` */
   helloSettings: Maybe<ZonosHelloSettings>;
+  /** Returns a single `HsCode`, including its description, for the given code and country. */
+  hsCode: ZonosHsCode;
   /** Returns a list of matching HsCode fragments. */
   hsCodeFragments: Array<ZonosHsCodeFragment>;
+  /** Returns the `InclusivePriceConfiguration` with the given `id`. */
+  inclusivePriceConfiguration: ZonosInclusivePriceConfiguration;
+  /** Returns a list of `InclusivePriceConfiguration` resources. */
+  inclusivePriceConfigurations: Maybe<ZonosInclusivePriceConfigurationConnection>;
   /** Returns an `Item` resource by ID. */
   item: Maybe<ZonosItem>;
+  /** @deprecated Use `restrictionResult` instead. */
   itemRestrictionResult: Maybe<ZonosItemRestrictionResult>;
+  /** @deprecated Use `restrictionResults` instead. */
   itemRestrictionResults: Maybe<ZonosItemRestrictionResultConnection>;
   /** Returns a list of `Item` resources. */
   items: Maybe<ZonosItemConnection>;
@@ -14277,11 +19019,19 @@ export type ZonosQuery = {
   /** Returns a manifest by its ID. */
   manifest: ZonosManifest;
   manifestLines: ZonosManifestLineConnection;
+  /** One saved manufacturer, or null when this organization has no such row. */
+  manufacturer: Maybe<ZonosManufacturer>;
+  /** This organization's saved manufacturers, by name — the list a filer picks from. */
+  manufacturers: ZonosManufacturerConnection;
   order: Maybe<ZonosOrder>;
   /** Finds all items for an `Order` that are shipped and not yet shipped. */
   orderFulfillmentProgress: ZonosOrderFulfillmentProgressResult;
   /** Line items for a reconciled payout. */
   orderPayoutDetails: Maybe<ZonosOrderPayoutDetailItemConnection>;
+  orderRelation: Maybe<ZonosOrderRelation>;
+  orderRelations: Array<ZonosOrderRelation>;
+  orderReturn: Maybe<ZonosOrderReturn>;
+  orderReturns: Array<ZonosOrderReturn>;
   orders: Maybe<ZonosOrderConnection>;
   /** Find orders by a list of account order numbers (maximum 100) */
   ordersByAccountOrderNumbers: Array<ZonosOrder>;
@@ -14290,6 +19040,8 @@ export type ZonosQuery = {
   /** List orders with search filters and fuzzy search support */
   ordersSearch: Maybe<ZonosOrderConnection>;
   organizationVendor: ZonosOrganizationVendor;
+  /** Lists the child accounts (vendors) of the calling partner `Organization`, for example the merchants under a postal operator. Each row carries the child's public credential for `filter.mode` as `accountKey`. */
+  organizationVendors: ZonosOrganizationVendorConnection;
   /** Returns a `PackagingOption` resource by `ID` */
   packagingOption: Maybe<ZonosPackagingOption>;
   /**
@@ -14331,8 +19083,18 @@ export type ZonosQuery = {
   pddpSubmissions: Maybe<ZonosPddpSubmissionConnection>;
   /** Get a plugin credential for a specific mode. Allows switching a credential between live and test mode. */
   pluginCredential: Maybe<ZonosPluginCredential>;
+  /** Fetch a finalized questionnaire response by id. */
+  questionnaireResponse: Maybe<ZonosQuestionnaireResponse>;
+  /** Fetch a wizard session by id. */
+  questionnaireSession: Maybe<ZonosQuestionnaireSession>;
+  /** Browse questionnaire sessions (paginated, filtered). The merchant dashboard's "catalog items needing answers" view is filter: {containerType: CATALOG_ITEM, statuses: [IN_PROGRESS]} — each node's containerId is the catalog item id, and totalCount is the aggregate badge count (sessions are only opened for items with outstanding programs, so open session ⇔ item needs answers). */
+  questionnaireSessions: ZonosQuestionnaireSessionConnection;
   /** Query for a `Reconciliation` by ID */
   reconciliation: Maybe<ZonosReconciliation>;
+  /** Look up a single regulation result by ID. */
+  regulationResult: Maybe<ZonosRegulationResult>;
+  /** Paginated list of regulation results. */
+  regulationResults: ZonosRegulationResultConnection;
   /** Look up a single restriction result by ID. */
   restrictionResult: Maybe<ZonosRestrictionResult>;
   /** Paginated list of restriction results. */
@@ -14381,7 +19143,10 @@ export type ZonosQuery = {
   /** Get all store credit for a customer */
   storeCreditsByCustomer: Array<ZonosStoreCredit>;
   taxIds: Maybe<Array<Maybe<ZonosTaxId>>>;
-  usages: ZonosUsageConnection;
+  /** Backbone taxonomy suggestions for a free-text genus/species question, prefix-matched on the entered term (typeahead), scoped to the given kingdom. Each suggestion is a full binomial the client can accept to fill both the genus and species fields; the same backbone hard-validates the answer on submit. Returns empty for a term shorter than two characters, unless `filter.genus` is set — that accepts an empty term and lists the genus's species. */
+  taxonSuggest: Array<ZonosTaxonSuggestion>;
+  /** Registered FDA human cell and tissue establishments whose firm name contains what the filer has typed (typeahead), for the manufacturer question that feeds the HRN affirmation. HRN is the establishment's registration number, which HCTERS publishes as its FDA Establishment Identifier and which no filer can look up. The name alone answers HRN outright for most registered firms; this is for the rest, where a firm is registered at several sites and only the filer knows which made the tissue. Only Registered establishments are offered, since an inactive registration does not satisfy the affirmation. Matching is substring and case-insensitive; returns empty for fewer than two characters. */
+  tissueEstablishmentSuggest: Array<ZonosTissueEstablishmentSuggestion>;
   /** Returns a ValidatedItem by ID */
   validatedItem: Maybe<ZonosValidatedItem>;
   /** Returns a `ValueEstimation` resource by ID. */
@@ -14400,6 +19165,34 @@ export type ZonosQuery = {
   webhookLogs: ZonosWebhookLogConnection;
   /** Returns a list of `Webhook` resources. */
   webhooks: ZonosWebhookConnection;
+  /** Returns a `WeightEstimation` resource by ID. */
+  weightEstimation: Maybe<ZonosWeightEstimation>;
+  /** Returns a list of `WeightEstimation` resources. */
+  weightEstimations: ZonosWeightEstimationConnection;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryAnimalDrugApprovalSuggestArgs = {
+  limit?: InputMaybe<Scalars['Int']>;
+  term: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryAnswerSuggestArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: ZonosAnswerSuggestFilter;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryBiologicLicenseSuggestArgs = {
+  limit?: InputMaybe<Scalars['Int']>;
+  term: Scalars['String'];
 };
 
 
@@ -14456,6 +19249,12 @@ export type ZonosQueryCarrierInvoiceAccountNumberMappingsArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryCarrierLabelCapabilitiesArgs = {
+  carrierNames: Array<Scalars['String']>;
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryCarrierPackagingTypesArgs = {
   carrier: Scalars['String'];
 };
@@ -14470,6 +19269,12 @@ export type ZonosQueryCarriersArgs = {
 /** interface Node { id: ID! } */
 export type ZonosQueryCartArgs = {
   id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCartByLandedCostIdArgs = {
+  landedCostId: Scalars['ID'];
 };
 
 
@@ -14545,6 +19350,58 @@ export type ZonosQueryCatalogItemsArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryCatalogItemsWithOpenQuestionnaireArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCategoriesArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCategoryArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCategoryValidationArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCategoryValidationsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosCategoryValidationsFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCbpExchangeRatesArgs = {
+  input: ZonosCbpExchangeRatesInput;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCheckoutCustomerTaxExemptionsArgs = {
+  customerId: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryCheckoutSessionArgs = {
   id: Scalars['ID'];
 };
@@ -14611,6 +19468,35 @@ export type ZonosQueryCollectUploadEventsArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryComplianceCampaignsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryComplianceObligationsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosComplianceObligationFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryComplianceRequirementsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosComplianceRequirementFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryConsignmentArgs = {
   id: Scalars['ID'];
 };
@@ -14639,6 +19525,14 @@ export type ZonosQueryConsolidationsArgs = {
   filter: InputMaybe<ZonosConsolidationFilter>;
   first: InputMaybe<Scalars['Int']>;
   last: InputMaybe<Scalars['Int']>;
+  sort?: InputMaybe<ZonosConsolidationSort>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryContainerComplianceReadinessArgs = {
+  containerId: Scalars['ID'];
+  containerType: ZonosContainerType;
 };
 
 
@@ -14680,6 +19574,21 @@ export type ZonosQueryCountryOfOriginJobsArgs = {
 /** interface Node { id: ID! } */
 export type ZonosQueryCurrencyFormatArgs = {
   input: ZonosCurrencyCode;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCustomsDescriptionValidationArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryCustomsDescriptionValidationsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
 };
 
 
@@ -14753,6 +19662,12 @@ export type ZonosQueryDeclarationFilteredArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryDeclarationPreClearanceArgs = {
+  filter: ZonosDeclarationPreClearanceFilter;
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryDeclarationsArgs = {
   after: InputMaybe<Scalars['String']>;
   before: InputMaybe<Scalars['String']>;
@@ -14763,8 +19678,71 @@ export type ZonosQueryDeclarationsArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryDeviceEstablishmentSuggestArgs = {
+  filter: InputMaybe<ZonosDeviceEstablishmentSuggestFilter>;
+  firmName: Scalars['String'];
+  limit?: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryDevicePremarketRequirementArgs = {
+  productCode: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryDevicePremarketSuggestArgs = {
+  filter: ZonosDevicePremarketSuggestFilter;
+  limit?: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryDrugEstablishmentSuggestArgs = {
+  filter: InputMaybe<ZonosDrugEstablishmentSuggestFilter>;
+  limit?: InputMaybe<Scalars['Int']>;
+  manufacturerName: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryDrugProductSuggestArgs = {
+  filter: InputMaybe<ZonosDrugProductSuggestFilter>;
+  limit?: InputMaybe<Scalars['Int']>;
+  tradeName: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryEntriesArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosBrokerageEntryFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryExchangeRateArgs = {
   id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryExportClassificationArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryExportClassificationsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosExportClassificationFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
 };
 
 
@@ -14809,14 +19787,30 @@ export type ZonosQueryGreenLightsArgs = {
 
 
 /** interface Node { id: ID! } */
-export type ZonosQueryHandlingUnitArgs = {
-  id: Scalars['ID'];
+export type ZonosQueryHsCodeArgs = {
+  hsCodeInput: ZonosHsCodeInput;
 };
 
 
 /** interface Node { id: ID! } */
 export type ZonosQueryHsCodeFragmentsArgs = {
   filter: ZonosHsCodeFragmentsFilter;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryInclusivePriceConfigurationArgs = {
+  id: InputMaybe<Scalars['ID']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryInclusivePriceConfigurationsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosInclusivePriceConfigurationFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
 };
 
 
@@ -14928,6 +19922,21 @@ export type ZonosQueryManifestLinesArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryManufacturerArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryManufacturersArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryOrderArgs = {
   orderId: Scalars['String'];
 };
@@ -14946,6 +19955,30 @@ export type ZonosQueryOrderPayoutDetailsArgs = {
   first: InputMaybe<Scalars['Int']>;
   last: InputMaybe<Scalars['Int']>;
   payoutId: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryOrderRelationArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryOrderRelationsArgs = {
+  filter: InputMaybe<ZonosOrderRelationFilterInput>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryOrderReturnArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryOrderReturnsArgs = {
+  filter: InputMaybe<ZonosOrderReturnFilterInput>;
 };
 
 
@@ -14988,7 +20021,18 @@ export type ZonosQueryOrdersSearchArgs = {
 /** interface Node { id: ID! } */
 export type ZonosQueryOrganizationVendorArgs = {
   externalId: InputMaybe<Scalars['String']>;
+  externalKey: InputMaybe<Scalars['String']>;
   id: InputMaybe<Scalars['ID']>;
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryOrganizationVendorsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosOrganizationVendorFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
 };
 
 
@@ -15122,8 +20166,46 @@ export type ZonosQueryPluginCredentialArgs = {
 
 
 /** interface Node { id: ID! } */
+export type ZonosQueryQuestionnaireResponseArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryQuestionnaireSessionArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryQuestionnaireSessionsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosQuestionnaireSessionFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+
+/** interface Node { id: ID! } */
 export type ZonosQueryReconciliationArgs = {
   id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryRegulationResultArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryRegulationResultsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  filter: InputMaybe<ZonosRegulationResultsFilter>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
 };
 
 
@@ -15310,12 +20392,17 @@ export type ZonosQueryTaxIdsArgs = {
 
 
 /** interface Node { id: ID! } */
-export type ZonosQueryUsagesArgs = {
-  after: InputMaybe<Scalars['String']>;
-  before: InputMaybe<Scalars['String']>;
-  filter: InputMaybe<ZonosUsageFilter>;
-  first: InputMaybe<Scalars['Int']>;
-  last: InputMaybe<Scalars['Int']>;
+export type ZonosQueryTaxonSuggestArgs = {
+  filter: InputMaybe<ZonosTaxonSuggestFilter>;
+  limit?: InputMaybe<Scalars['Int']>;
+  term: Scalars['String'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryTissueEstablishmentSuggestArgs = {
+  firmName: Scalars['String'];
+  limit?: InputMaybe<Scalars['Int']>;
 };
 
 
@@ -15386,6 +20473,366 @@ export type ZonosQueryWebhooksArgs = {
   last: InputMaybe<Scalars['Int']>;
 };
 
+
+/** interface Node { id: ID! } */
+export type ZonosQueryWeightEstimationArgs = {
+  id: Scalars['ID'];
+};
+
+
+/** interface Node { id: ID! } */
+export type ZonosQueryWeightEstimationsArgs = {
+  after: InputMaybe<Scalars['String']>;
+  before: InputMaybe<Scalars['String']>;
+  first: InputMaybe<Scalars['Int']>;
+  last: InputMaybe<Scalars['Int']>;
+};
+
+export type ZonosQuestion = {
+  __typename?: 'Question';
+  /** Author-controlled semantic revision. Answers carry forward only when code and revision match. */
+  answerRevision: Scalars['Int'];
+  /** Whether the answer is durable product master data or a fact about one shipment. A program can mix both — an FDA registration answered once, a lot number every shipment — so a durable answer only settles the questions asked at its own scope. */
+  answerScope: ZonosResponseTargetType;
+  answerType: ZonosAnswerType;
+  /** Stable per-version code, e.g. 'intended_use'. */
+  code: Scalars['String'];
+  /** When this question applies, as a rule expression over the item (hs_code, country_of_origin, ship_from_country, ship_to_country) — e.g. `hs_code none_starts_with "72,73,74,76"`. Null = always. Unlike displayCondition, which reads prior answers, this reads the item, so it is fixed the moment the line exists. */
+  condition: Maybe<Scalars['String']>;
+  /** Answer this question falls back to when nothing infers one — an exclusion that is not claimed unless the filer says otherwise, say. The bare value (an answerOption value for a SELECT), which arrives as an INFERRED answer the filer can change. Null = the question arrives unanswered. */
+  defaultValue: Maybe<Scalars['String']>;
+  /** Predicate over prior answers in the same session gating whether this question is shown. Null = always visible. Well-formedness is enforced at version publish. */
+  displayCondition: Maybe<ZonosDisplayCondition>;
+  displayOrder: Scalars['Int'];
+  /** Attribute key or ItemComposition field name to write under. Set whenever effectTarget is set. */
+  effectKey: Maybe<Scalars['String']>;
+  /** Where this question's answer is written on the federated Item when the response is finalized. Null = pure informational/branching — writes nothing to the catalog. */
+  effectTarget: Maybe<ZonosEffectTarget>;
+  helpText: Maybe<Scalars['String']>;
+  id: Scalars['ID'];
+  /** Answer options (for SINGLE_SELECT / MULTI_SELECT), in display order. */
+  options: Array<ZonosAnswerOption>;
+  /** Token identifying which OptionsProvider backs this question's options dynamically (e.g. 'FDA_PCB'). Null = static answer_option rows (options field only). When set, the question's full reachable option space is delivered up-front in the session line's dependentOptions table rather than resolved per-render server-side. */
+  optionsSource: Maybe<Scalars['String']>;
+  prompt: Scalars['String'];
+  /** Code of the NUMBER question (e.g. `part_count`) whose answer is how many lines this is asked on; null = once. */
+  repeatGroup: Maybe<Scalars['String']>;
+  /** @deprecated Replaced by `requirement`, which distinguishes PREFERRED from plain OPTIONAL. Equivalent to `requirement == REQUIRED`; will be removed once consumers have moved over. */
+  required: Scalars['Boolean'];
+  /** How strongly this question must be answered. Only REQUIRED blocks completion. */
+  requirement: ZonosQuestionRequirement;
+  /** Questions sharing a non-null rowGroup value render together on one line (e.g. a value + its unit), ordered by displayOrder within the group. Null = its own line. */
+  rowGroup: Maybe<Scalars['String']>;
+  section: Maybe<Scalars['String']>;
+  /** Cross-program dedup key: questions sharing this key with an identical answer domain collect one shared answer, asked on one line and mirrored onto the others. Scoped per item unless the key is prefixed `session:`, which widens it to every line in the session — for a fact about the filing rather than the goods (who is signing it), so a ten-item shipment asks once, not ten times. Null = not shared. */
+  sharedKey: Maybe<Scalars['String']>;
+};
+
+export type ZonosQuestionAnswer = {
+  __typename?: 'QuestionAnswer';
+  /** Ranked alternatives the inference considered ("top choices we would have picked"), probability order with the selected value first; empty for MANUAL answers or answer types with no alternative set. */
+  alternates: Maybe<Array<ZonosQuestionAnswerAlternate>>;
+  answeredAt: Scalars['DateTime'];
+  /** AI confidence score (0-1) for an INFERRED answer; null for MANUAL. */
+  confidence: Maybe<Scalars['Float']>;
+  /** When the underlying answer/document expires; null if it does not expire. */
+  expiresAt: Maybe<Scalars['DateTime']>;
+  id: Scalars['ID'];
+  /** Consumer friendly name for `value`. */
+  label: Maybe<Scalars['String']>;
+  /** Line (0..N) this answer is for when its question has a repeatGroup; null for a header question. */
+  lineIndex: Maybe<Scalars['Int']>;
+  /** How this answer originated. Editing a prefilled answer supersedes it with a MANUAL row. */
+  provenance: ZonosAnswerProvenance;
+  questionCode: Scalars['String'];
+  /** The answer as filed, in English or Latin letters, when that differs from `value` — same encoding as `value`. Null when `value` files as typed. */
+  translation: Maybe<Scalars['String']>;
+  /** JSON-encoded answer value (string, boolean, number, or array of strings). */
+  value: Scalars['String'];
+};
+
+/** A ranked alternative the inference considered but did not select, in probability order. */
+export type ZonosQuestionAnswerAlternate = {
+  __typename?: 'QuestionAnswerAlternate';
+  /** AI confidence score (0-1) for this alternative. */
+  confidenceScore: Maybe<Scalars['Decimal']>;
+  /** Consumer friendly name for `value`, same convention as QuestionAnswer.label. */
+  label: Maybe<Scalars['String']>;
+  /** JSON-encoded alternative value, same encoding as QuestionAnswer.value. */
+  value: Scalars['String'];
+};
+
+export type ZonosQuestionAnswerInput = {
+  /** Optional expiry for a document-derived answer (e.g. certificate of origin). */
+  expiresAt?: InputMaybe<Scalars['DateTime']>;
+  /** Consumer friendly name for value; falls back to value if omitted. */
+  label?: InputMaybe<Scalars['String']>;
+  /** Line (0..N) for a question with a repeatGroup, defaulting to 0; rejected on a header question. */
+  lineIndex?: InputMaybe<Scalars['Int']>;
+  questionCode: Scalars['String'];
+  /** JSON-encoded answer value. */
+  value: Scalars['String'];
+};
+
+/** How strongly a question must be answered. Only REQUIRED blocks response completion. */
+export type ZonosQuestionRequirement =
+  /** Not blocking; answer only if convenient. */
+  | 'OPTIONAL'
+  /** Not blocking, but the agency/filing quality benefits from an answer — surface it prominently. */
+  | 'PREFERRED'
+  /** Must be answered while visible — blocks completing the line/response. */
+  | 'REQUIRED';
+
+export type ZonosQuestionnaireAnswersSubmitInput = {
+  answers: Array<ZonosQuestionAnswerInput>;
+  /** External id of the session line these answers are for. */
+  lineId: Scalars['ID'];
+  /** External id of the in-progress session. */
+  sessionId: Scalars['ID'];
+};
+
+export type ZonosQuestionnaireInferItemInput = {
+  /** The item's brand. Readable by answer rules as `supplied('brand')`, e.g. to answer a trade-name question. */
+  brand?: InputMaybe<Scalars['String']>;
+  /** For ITEM targets: the item's CatalogItem id, so a COMPLETE catalog-level response satisfies the program (dual-target satisfaction). */
+  catalogItemId?: InputMaybe<Scalars['ID']>;
+  /** Country of origin (ISO 2-char). Forwarded to regulationsApply so agencies echo it at full confidence instead of inferring. */
+  countryOfOrigin?: InputMaybe<ZonosCountryCode>;
+  /** Currency of `value` (ISO 4217); defaults to USD when omitted. */
+  currency?: InputMaybe<ZonosCurrencyCode>;
+  description?: InputMaybe<Scalars['String']>;
+  hsCode: Scalars['String'];
+  /** Declared import intent. Backstops intended-use inference: when the model can't determine the IUC from the product alone, the declared intent's code is used (confidence 1.0 — it's the importer's declaration, not a guess). Storefront flows should pass CONSUMER. */
+  intendedUse?: InputMaybe<ZonosIntendedUseType>;
+  /** The merchant's own number for this product (its SKU or product id). Readable by answer rules as `supplied('itemKey')`, e.g. to answer a product-number question. */
+  itemKey?: InputMaybe<Scalars['String']>;
+  /** Item fields for inline inference (ignored when regulationResultId is given). */
+  name?: InputMaybe<Scalars['String']>;
+  /** Declared unit count of the item. Fills the APHIS/FWS reporting quantity as a Number/count when no weight is declared (weight takes priority when both are present). APL is excluded — its reporting units are mass/volume/length only. */
+  quantity?: InputMaybe<Scalars['Decimal']>;
+  targetId: Scalars['ID'];
+  targetType: ZonosResponseTargetType;
+  /** Optional tariff description matching hsCode, forwarded as context to inline regulation inference. */
+  tariffDescription?: InputMaybe<Scalars['String']>;
+  /** Declared customs value of the item. Forwarded to regulationsApply so agencies use it instead of estimating. */
+  value?: InputMaybe<Scalars['Decimal']>;
+  /** Declared container volume of the item, in `volumeUnit`. Prefills FDA's LACF/AF container-volume affirmation (AoC VOL) verbatim — the filing wants the size the packer filed, so it is never converted. */
+  volume?: InputMaybe<Scalars['Decimal']>;
+  /** Volume unit of `volume`; required for the volume to be used, as there is no safe default. Only LITER and MILLILITER are volumes; any other unit is ignored. */
+  volumeUnit?: InputMaybe<ZonosComplianceUnitOfMeasure>;
+  /** Declared net weight of the item, in `weightUnit`. Converted to kilograms and used to prefill weight/quantity questions (net weight and per-agency reporting quantity). */
+  weight?: InputMaybe<Scalars['Decimal']>;
+  /** Weight unit of `weight`; defaults to KILOGRAM when omitted. Only weight units apply; the value is converted to kilograms before prefilling, so every target question receives a KG value. */
+  weightUnit?: InputMaybe<ZonosComplianceUnitOfMeasure>;
+};
+
+export type ZonosQuestionnaireInferLineSummary = {
+  __typename?: 'QuestionnaireInferLineSummary';
+  /** Number of questions pre-answered on this line — from inference, or, when the line came from complianceQuestionnaireAmend, carried over from the response being amended. A question two programs ask in common is answered once, so a carried-over answer may have reached this line from a sibling line's response rather than from its own. */
+  inferredCount: Scalars['Int'];
+  lineId: Scalars['ID'];
+  /** External id of the ComplianceProgram this line answers. */
+  programId: Scalars['ID'];
+  remainingRequiredCount: Scalars['Int'];
+  state: ZonosQuestionnaireInferState;
+  targetId: Scalars['ID'];
+};
+
+export type ZonosQuestionnaireInferSatisfiedProgram = {
+  __typename?: 'QuestionnaireInferSatisfiedProgram';
+  /** External id of the already-satisfied ComplianceProgram. */
+  programId: Scalars['ID'];
+  /** The item the program is satisfied for (it may still have a line for another item). */
+  targetId: Scalars['ID'];
+};
+
+export type ZonosQuestionnaireInferState =
+  /** No inference facts matched this line's questions — plain fallback questionnaire. */
+  | 'NOT_INFERRED'
+  /** Some answers inferred; required questions remain — the wizard resumes at the first one. */
+  | 'PARTIAL'
+  /** Every required, currently-visible question is answered — eligible for one-click attest. */
+  | 'READY_TO_ATTEST';
+
+export type ZonosQuestionnaireReleaseImpact =
+  | 'COMPATIBLE'
+  | 'REANSWER'
+  | 'REATTEST';
+
+export type ZonosQuestionnaireResponse = {
+  __typename?: 'QuestionnaireResponse';
+  answeredBy: Scalars['String'];
+  answers: Array<ZonosQuestionAnswer>;
+  completedAt: Scalars['DateTime'];
+  containerId: Maybe<Scalars['ID']>;
+  /** Grouping container the answers were collected under; null for one-shot submissions. */
+  containerType: Maybe<ZonosContainerType>;
+  /** Stable external id, prefixed questionnaire_response_. */
+  id: Scalars['ID'];
+  shipFromCountry: Maybe<ZonosCountryCode>;
+  shipToCountry: Maybe<ZonosCountryCode>;
+  status: ZonosResponseStatus;
+  /** Federated id of the target (catalog item / item). */
+  targetId: Scalars['ID'];
+  /** What the response is about — a durable CatalogItem or a per-shipment Item. */
+  targetType: ZonosResponseTargetType;
+};
+
+export type ZonosQuestionnaireResponseSubmitInput = {
+  answers: Array<ZonosQuestionAnswerInput>;
+  /** HS code of the target item — required for completeness/applicability resolution on emit. */
+  hsCode?: InputMaybe<Scalars['String']>;
+  /** External id of the ComplianceProgram whose ACTIVE questionnaire is being answered. */
+  programId: Scalars['ID'];
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+  /** Federated id of the target (catalog item / item). */
+  targetId: Scalars['ID'];
+  /** Whether the answers are about a durable CatalogItem or a per-shipment Item. */
+  targetType: ZonosResponseTargetType;
+};
+
+export type ZonosQuestionnaireSession = {
+  __typename?: 'QuestionnaireSession';
+  containerId: Scalars['ID'];
+  /** Grouping container the flow is scoped to. */
+  containerType: ZonosContainerType;
+  /** Stable external id, prefixed questionnaire_session_. */
+  id: Scalars['ID'];
+  /** One line per (item, program) the container's items trigger. */
+  lines: Array<ZonosQuestionnaireSessionLine>;
+  /** The party whose person is certifying this session's attestations, named by the caller as `partyId` and confirmed by the filer. Null until one is named. Select through it for the certifier's name, phone and email — the router resolves those from PartyDgs, which owns them; this service stores the reference and never a copy, so the details a filer sees are always the ones on file rather than a snapshot that has since drifted. */
+  party: Maybe<ZonosParty>;
+  shipFromCountry: Maybe<ZonosCountryCode>;
+  shipToCountry: Maybe<ZonosCountryCode>;
+  /** Rollup of the lines: COMPLETED only when every line is COMPLETED. */
+  status: ZonosSessionStatus;
+};
+
+export type ZonosQuestionnaireSessionAttestInput = {
+  /** Lines to attest. Default = every line currently eligible. */
+  lineIds?: InputMaybe<Array<Scalars['ID']>>;
+  /** External id of the in-progress session. */
+  sessionId: Scalars['ID'];
+};
+
+export type ZonosQuestionnaireSessionConnection = {
+  __typename?: 'QuestionnaireSessionConnection';
+  edges: Array<ZonosQuestionnaireSessionEdge>;
+  pageInfo: ZonosPageInfo;
+  totalCount: Scalars['Int'];
+};
+
+export type ZonosQuestionnaireSessionEdge = {
+  __typename?: 'QuestionnaireSessionEdge';
+  cursor: Scalars['String'];
+  node: ZonosQuestionnaireSession;
+};
+
+/** Filter for browsing questionnaire sessions. Archived sessions are never returned. */
+export type ZonosQuestionnaireSessionFilter = {
+  /** Exact container id. Resolves the session for a single container — the catalog-item detail view pairs this with CatalogItem.hasOpenQuestionnaire to get the session id that questionnaireSessionInfer needs, instead of paging the whole listing to find one row. */
+  containerId?: InputMaybe<Scalars['ID']>;
+  containerType?: InputMaybe<ZonosContainerType>;
+  statuses?: InputMaybe<Array<ZonosSessionStatus>>;
+};
+
+export type ZonosQuestionnaireSessionInferInput = {
+  /** External id of the in-progress CATALOG_ITEM session. */
+  id: Scalars['ID'];
+  /** The merchant's language, the first point it is known for this session — see questionnaireSessionInfer for how it is applied. */
+  languageCode?: InputMaybe<ZonosLanguageCode>;
+  /** The party certifying this session's attestations (see ComplianceQuestionnaireInferInput.partyId). */
+  partyId?: InputMaybe<Scalars['ID']>;
+};
+
+export type ZonosQuestionnaireSessionLine = {
+  __typename?: 'QuestionnaireSessionLine';
+  /** The scopes this line collects. `[ITEM]` alone is the per-shipment half of a fanned-out questionnaire — `targetType` does not imply it. */
+  answerScopes: Array<ZonosResponseTargetType>;
+  /** Every answer captured on this line; never filtered by `requirements`. */
+  answers: Array<ZonosQuestionAnswer>;
+  /** The next question to answer on this line; null once the line is COMPLETED, or once `requirements` (see `visibleQuestions`) leaves nothing to ask. */
+  currentQuestion: Maybe<ZonosQuestion>;
+  /** Provider-agnostic up-front dependent-options table. One DependentOptionSet per distinct optionsSource among this line's questions, covering every reachable option combination scoped to this line's item (HTS code). Clients use this to derive visible options for provider-backed questions locally, without additional server calls. */
+  dependentOptions: Array<ZonosDependentOptionSet>;
+  /** Stable external id, prefixed questionnaire_session_line_. */
+  id: Scalars['ID'];
+  /** The program this line answers, so a client can name it and tell what kind it is (`programType`) without a second read. Archived programs resolve: a session outlives its program, and the superseded measures are the ones worth naming. Null only when the program row is unreadable. */
+  program: Maybe<ZonosComplianceProgram>;
+  /** External id of the ComplianceProgram this line answers. */
+  programId: Scalars['ID'];
+  /** ALL questions for this line's questionnaire version in display order, each with its latest answer. Display conditions are NOT evaluated server-side here — deliver the full tree so the client can evaluate them locally (one-shot delivery, zero subsequent round-trips for conditional branching). `requirements` filters it as on `visibleQuestions`. */
+  questions: Array<ZonosSessionLineQuestion>;
+  /** External id of the finalized response; null until the line is COMPLETED. */
+  responseId: Maybe<Scalars['ID']>;
+  status: ZonosSessionLineStatus;
+  targetId: Scalars['ID'];
+  /** What the line is about — a durable CatalogItem or a per-shipment Item. */
+  targetType: ZonosResponseTargetType;
+  /** All currently-visible questions in display order, each with its latest answer merged (null when unanswered). Display conditions are evaluated server-side against this line's answers — the render-ready review list; clients never re-implement the evaluator. `requirements` keeps only questions at those levels (null/empty = every level). It narrows delivery, not the line: completion still blocks on REQUIRED alone. An unanswered question that a kept one's display condition gates on is kept too, or the gated question could never become visible. */
+  visibleQuestions: Array<ZonosSessionLineQuestion>;
+};
+
+
+export type ZonosQuestionnaireSessionLineCurrentQuestionArgs = {
+  requirements: InputMaybe<Array<ZonosQuestionRequirement>>;
+};
+
+
+export type ZonosQuestionnaireSessionLineQuestionsArgs = {
+  requirements: InputMaybe<Array<ZonosQuestionRequirement>>;
+};
+
+
+export type ZonosQuestionnaireSessionLineVisibleQuestionsArgs = {
+  requirements: InputMaybe<Array<ZonosQuestionRequirement>>;
+};
+
+export type ZonosQuestionnaireSessionLineInput = {
+  /** External id of the ComplianceProgram whose ACTIVE questionnaire is being answered. */
+  programId: Scalars['ID'];
+  targetId: Scalars['ID'];
+  targetType: ZonosResponseTargetType;
+};
+
+export type ZonosQuestionnaireSessionStartInput = {
+  containerId: Scalars['ID'];
+  /** Grouping container the flow is scoped to. */
+  containerType: ZonosContainerType;
+  /** Language to render question/answer/option text in; falls back to Accept-Language, then English. */
+  languageCode?: InputMaybe<ZonosLanguageCode>;
+  /** One entry per (item, program) to collect answers for. */
+  lines: Array<ZonosQuestionnaireSessionLineInput>;
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+export type ZonosQuestionnaireStatus =
+  | 'ACTIVE'
+  | 'DEPRECATED'
+  | 'DRAFT';
+
+export type ZonosQuestionnaireVersion = {
+  __typename?: 'QuestionnaireVersion';
+  /** The scopes this version's questions ask at. Both means it is answered on a line per target — the durable half once against the product, the per-shipment half on every shipment. A version asking at ITEM has questions only whoever holds the shipment can answer, so a catalog surface cannot settle it. */
+  answerScopes: Array<ZonosResponseTargetType>;
+  breakingVersion: Scalars['Int'];
+  /** Null until the version is activated — a DRAFT has no effective date (V6.71). */
+  effectiveDate: Maybe<Scalars['DateTime']>;
+  /** When stale answers begin blocking compliance; null means immediate when the release requires review. */
+  enforcementAt: Maybe<Scalars['DateTime']>;
+  id: Scalars['ID'];
+  /** External id of the owning ComplianceProgram. */
+  programId: Scalars['ID'];
+  /** Questions in display order. */
+  questions: Array<ZonosQuestion>;
+  /** How activation of this version affects answers from earlier compatibility epochs. */
+  releaseImpact: Maybe<ZonosQuestionnaireReleaseImpact>;
+  status: ZonosQuestionnaireStatus;
+  version: Scalars['Int'];
+};
+
 export type ZonosQueueDataMigrationInput = {
   /** The area of data to migrate, such as Shipping or Catalog. If no value is provided, all areas will be queued. */
   dataArea?: InputMaybe<Scalars['String']>;
@@ -15436,6 +20883,94 @@ export type ZonosRegulationAlternate = {
   summary: Maybe<Scalars['String']>;
 };
 
+export type ZonosRegulationApplyInput = {
+  /** Regulatory agencies to check against. If null, all agencies are checked. */
+  agencies?: InputMaybe<Array<ZonosAgency>>;
+  /** The items needing to be checked for regulations. */
+  items: Array<ZonosRegulationApplyItemInput>;
+  /** Origin country. Required if any item is missing an HTS code. */
+  shipFromCountry?: InputMaybe<ZonosCountryCode>;
+  /** Destination country (typically US for CPSC). Required if any item is missing an HTS code. */
+  shipToCountry?: InputMaybe<ZonosCountryCode>;
+};
+
+export type ZonosRegulationApplyItemInput = {
+  /** AMS-specific input data. Use this for UNSPSC overrides. */
+  ams?: InputMaybe<ZonosAmsItemInput>;
+  /** APHIS (Core)-specific input data. Use this to supply the scientific name (genus/species) when known, instead of letting it be inferred. */
+  aphis?: InputMaybe<ZonosAphisItemInput>;
+  /** Lacey Act-specific input data (APHIS program APL). Use this to declare the item's plant/plant-product lines (genus/species, country of harvest, quantity, value). */
+  apl?: InputMaybe<ZonosAplItemInput>;
+  /** Product attributes that help determine which regulations apply. */
+  attributes?: InputMaybe<ZonosItemAttributesInput>;
+  /** The category hierarchy associated with the item. */
+  categories?: InputMaybe<Array<Scalars['String']>>;
+  /** Country of origin (ISO 2-char code). Used for country-specific AoCs like FCC (France), CCC (China), IBP (India). */
+  countryOfOrigin?: InputMaybe<ZonosCountryCode>;
+  /** Currency of `value` (ISO 4217). When not USD, the value is converted to USD using the CBP exchange rate. Defaults to USD when omitted. */
+  currency?: InputMaybe<ZonosCurrencyCode>;
+  /** Human readable item description. */
+  description?: InputMaybe<Scalars['String']>;
+  /** FDA-specific input data. Use this for FDA product codes, IUC overrides, and LACF indicators. */
+  fda?: InputMaybe<ZonosFdaItemInput>;
+  /** FWS-specific input data (Fish & Wildlife Service, Form 3-177). Use this to declare the item's wildlife lines (genus/species, product form, source, purpose, country, quantity, value) and the eDecs filer account. */
+  fws?: InputMaybe<ZonosFwsItemInput>;
+  /** HTS code for this item. If omitted or invalid, will be classified automatically. */
+  htsCode?: InputMaybe<Scalars['String']>;
+  /** Intended use of the item. Affects which regulations/AoCs apply. If not provided, AI will infer from item context. */
+  intendedUse?: InputMaybe<ZonosIntendedUseType>;
+  /** External id for consumer mapping. */
+  itemId?: InputMaybe<Scalars['String']>;
+  /** The material composition of the item. */
+  material?: InputMaybe<Scalars['String']>;
+  /** Arbitrary key-value pairs for additional context. */
+  metadata?: InputMaybe<Array<ZonosKeyValueInput>>;
+  /** Human readable item name. Required for AI classification. */
+  name: Scalars['String'];
+  /** Optional caller-supplied tariff description for this HTS code, used as inference context. */
+  tariffDescription?: InputMaybe<Scalars['String']>;
+  /** Declared customs value of the item. When provided, agencies use it instead of estimating the value. Non-USD amounts are converted to USD via the CBP exchange rate. */
+  value?: InputMaybe<Scalars['Decimal']>;
+};
+
+export type ZonosRegulationResult = {
+  __typename?: 'RegulationResult';
+  /** When this result was created. */
+  createdAt: Scalars['DateTime'];
+  /** The user that created this result. */
+  createdBy: Maybe<Scalars['ID']>;
+  /** Regulation result ID, prefixed with `regulation_result_`. */
+  id: Scalars['ID'];
+  /** The items with their applied regulations. */
+  items: Array<ZonosAppliedRegulations>;
+  /** The organization that owns this result. */
+  organizationId: Scalars['ID'];
+  /** Origin country. */
+  shipFromCountry: Maybe<ZonosCountryCode>;
+  /** Destination country. */
+  shipToCountry: Maybe<ZonosCountryCode>;
+};
+
+export type ZonosRegulationResultConnection = {
+  __typename?: 'RegulationResultConnection';
+  edges: Maybe<Array<Maybe<ZonosRegulationResultEdge>>>;
+  pageInfo: Maybe<ZonosPageInfo>;
+  totalCount: Maybe<Scalars['Int']>;
+};
+
+export type ZonosRegulationResultEdge = {
+  __typename?: 'RegulationResultEdge';
+  cursor: Maybe<Scalars['String']>;
+  node: Maybe<ZonosRegulationResult>;
+};
+
+export type ZonosRegulationResultsFilter = {
+  /** Filter results created after this date. */
+  createdAtAfter?: InputMaybe<Scalars['DateTime']>;
+  /** Filter results created before this date. */
+  createdAtBefore?: InputMaybe<Scalars['DateTime']>;
+};
+
 /** Regulation match summary aggregated across items. */
 export type ZonosRegulationRiskSummary = {
   __typename?: 'RegulationRiskSummary';
@@ -15464,16 +20999,6 @@ export type ZonosRemittance = {
   taxId: Maybe<Scalars['String']>;
 };
 
-export type ZonosRequestedCartonItem = {
-  __typename?: 'RequestedCartonItem';
-  amount: Scalars['Decimal'];
-  countryOfOrigin: ZonosCountryCode;
-  currencyCode: ZonosCurrencyCode;
-  description: Scalars['String'];
-  hsCode: Scalars['String'];
-  quantity: Scalars['Int'];
-};
-
 export type ZonosRequestedCartonItemInput = {
   amount: Scalars['Decimal'];
   countryOfOrigin: ZonosCountryCode;
@@ -15486,14 +21011,15 @@ export type ZonosRequestedCartonItemInput = {
   sku?: InputMaybe<Scalars['String']>;
 };
 
-export type ZonosRerunRestrictionsInput = {
-  /** Whether to use AI mode for the rerun. */
-  aiMode: Scalars['Boolean'];
-  /** Optional rerun ID to group all results together. If null, generates a new UUID. */
-  rerunId?: InputMaybe<Scalars['String']>;
-  /** The test ID to rerun restrictions for. If null, reruns ALL order_ids from restriction_sample_test. */
-  testId?: InputMaybe<Scalars['String']>;
-};
+export type ZonosResponseStatus =
+  | 'COMPLETE'
+  | 'SUPERSEDED';
+
+export type ZonosResponseTargetType =
+  /** Durable product master data — answer once, reuse; effect-targeted answers materialize onto the CatalogItem. */
+  | 'CATALOG_ITEM'
+  /** Per-shipment item — answers are stored and mapped onto the entry at filing time. */
+  | 'ITEM';
 
 /** A `RestrictedItem represent an item that has been restricted. 3 ways an item can be restricted: via catalog's restricted countries, a rule, or itemRestriction API. */
 export type ZonosRestrictedItem = {
@@ -15531,7 +21057,7 @@ export type ZonosRestriction = {
   carrierCode: Maybe<ZonosRestrictionCarrier>;
   /** The category determines what action the merchant needs to take. */
   category: Maybe<ZonosRestrictionCategory>;
-  /** TRUE = certain match (skip AI), FALSE = needs AI binary classification. */
+  /** Whether this restriction is a confirmed match for the HS code (TRUE), or a candidate that still needs further review to confirm it applies (FALSE). */
   certainMatch: Scalars['Boolean'];
   /** Confidence level: HIGH, MEDIUM, or LOW. */
   confidence: ZonosRestrictionConfidence;
@@ -15655,10 +21181,11 @@ export type ZonosRestrictionBulkJobTarget =
 export type ZonosRestrictionCarrier =
   | 'AUSTRALIA_POST';
 
-/** The category of restriction - determines what action the merchant needs to take. - COST: Additional fees, taxes, or duties beyond standard tariff. - DANGEROUS_GOODS: Item is classified as a UN dangerous good. Check regulationTitle for the specific class (e.g., CLASS_3_FLAMMABLE_LIQUID). - DOCUMENTATION_REQUIRED: Must obtain certificates, tests, inspections to clear customs. - INFORMATION: Standards to be aware of. No specific action required. - PERMIT_REQUIRED: Must obtain authorization/license BEFORE shipping. - PRODUCT_COMPLIANCE: Product must be physically modified (labeled, treated, packaged). - PROHIBITED: Cannot ship. Item is banned. - QUOTA: Quantity limits exist. Check availability before shipping. */
+/** The category of restriction - determines what action the merchant needs to take. - COST: Additional fees, taxes, or duties beyond standard tariff. - DANGEROUS_GOODS: Item is classified as a UN dangerous good. Check regulationTitle for the specific class (e.g., CLASS_3_FLAMMABLE_LIQUID). - DEFORESTATION: EU Deforestation Regulation (2023/1115) applies. A due diligence statement proving the commodity is deforestation-free is required. - DOCUMENTATION_REQUIRED: Must obtain certificates, tests, inspections to clear customs. - INFORMATION: Standards to be aware of. No specific action required. - PERMIT_REQUIRED: Must obtain authorization/license BEFORE shipping. - PRODUCT_COMPLIANCE: Product must be physically modified (labeled, treated, packaged). - PROHIBITED: Cannot ship. Item is banned. - QUOTA: Quantity limits exist. Check availability before shipping. */
 export type ZonosRestrictionCategory =
   | 'COST'
   | 'DANGEROUS_GOODS'
+  | 'DEFORESTATION'
   | 'DOCUMENTATION_REQUIRED'
   | 'INFORMATION'
   | 'PERMIT_REQUIRED'
@@ -15666,7 +21193,7 @@ export type ZonosRestrictionCategory =
   | 'PROHIBITED'
   | 'QUOTA';
 
-/** Confidence level of a restriction match. Owned by RestrictedItemDgs. */
+/** Confidence level of a restriction match. */
 export type ZonosRestrictionConfidence =
   /** High confidence. */
   | 'HIGH'
@@ -15865,11 +21392,6 @@ export type ZonosRule = {
   id: Scalars['ID'];
 };
 
-export type ZonosRunRestrictTestInput = {
-  aiMode?: InputMaybe<Scalars['Boolean']>;
-  testId?: InputMaybe<Scalars['String']>;
-};
-
 export type ZonosScope =
   | 'DEFAULT'
   | 'STORES'
@@ -15877,11 +21399,6 @@ export type ZonosScope =
 
 export type ZonosScreenExistingPartyInput = {
   partyId: Scalars['ID'];
-};
-
-export type ZonosScreenPartyInput = {
-  location?: InputMaybe<ZonosDeniedPartyLocationInput>;
-  person?: InputMaybe<ZonosDeniedPartyPersonInput>;
 };
 
 /** The screening scores for the party screening. */
@@ -15982,15 +21499,6 @@ export type ZonosServiceLevelClearanceType =
   /** Postal clearance service level. */
   | 'POSTAL';
 
-/** ServiceLevel Connection */
-export type ZonosServiceLevelConnection = {
-  __typename?: 'ServiceLevelConnection';
-  /** Field edges */
-  edges: Maybe<Array<Maybe<ZonosServiceLevelEdge>>>;
-  /** Field pageInfo */
-  pageInfo: ZonosPageInfo;
-};
-
 export type ZonosServiceLevelDetailInput = {
   /** The code used in the carrier API call */
   apiCode: Scalars['String'];
@@ -16000,15 +21508,6 @@ export type ZonosServiceLevelDetailInput = {
   code: Scalars['String'];
   /** ID of the `ServiceLevel` */
   id: Scalars['ID'];
-};
-
-/** ServiceLevel Edge */
-export type ZonosServiceLevelEdge = {
-  __typename?: 'ServiceLevelEdge';
-  /** Field cursor */
-  cursor: Maybe<Scalars['String']>;
-  /** Field node */
-  node: Maybe<ZonosServiceLevel>;
 };
 
 export type ZonosServiceLevelFilter = {
@@ -16073,6 +21572,34 @@ export type ZonosServiceLevelRateChartsFilter = {
   serviceLevel: Scalars['ID'];
 };
 
+export type ZonosServiceLevelReplicaBackfillResult = {
+  __typename?: 'ServiceLevelReplicaBackfillResult';
+  upsertedCount: Scalars['Int'];
+};
+
+/** A currently-visible question on a session line, merged with its latest answer. */
+export type ZonosSessionLineQuestion = {
+  __typename?: 'SessionLineQuestion';
+  /** The latest answer on this line; null when unanswered. */
+  answer: Maybe<ZonosQuestionAnswer>;
+  /** Line (0..N) this entry asks `question` on when it has a repeatGroup; null for a header question. */
+  lineIndex: Maybe<Scalars['Int']>;
+  /** True when the answer was filled from another question (sharing.shown) and the filer cannot change it; render it read-only. */
+  locked: Scalars['Boolean'];
+  question: ZonosQuestion;
+  /** For a REFERENCE question, which of this line's answers sharpen its search — exactly what to pass as `AnswerSuggestFilter.answers`. Empty elsewhere; the line's own HS code and origin are never listed. */
+  scopedBy: Array<Scalars['String']>;
+};
+
+export type ZonosSessionLineStatus =
+  | 'COMPLETED'
+  | 'IN_PROGRESS';
+
+export type ZonosSessionStatus =
+  | 'ABANDONED'
+  | 'COMPLETED'
+  | 'IN_PROGRESS';
+
 export type ZonosShipment = ZonosNode & {
   __typename?: 'Shipment';
   /** The total calculated amount for all labels associated with this shipment */
@@ -16093,6 +21620,8 @@ export type ZonosShipment = ZonosNode & {
   declarationId: Maybe<Scalars['ID']>;
   /** The declared value (insurance) of the shipment */
   declaredValue: Maybe<Scalars['Decimal']>;
+  /** Whether this Shipment moves goods to the customer (`OUTBOUND`) or back from them (`RETURN`). Anything treating a Shipment as evidence of fulfillment — fulfillment progress, order status, tracking attribution, manifests — must filter to `OUTBOUND`. */
+  direction: ZonosShipmentDirection;
   /** Exemption code for shipments requiring an ITN */
   exemption: Maybe<Scalars['String']>;
   /** The `FulfillmentCenter` that was used to fulfill the Shipment. */
@@ -16199,6 +21728,8 @@ export type ZonosShipmentCarton = ZonosNode & {
   carton: ZonosCarton;
   /** Details for a package containing dangerous goods. Required if DANGEROUS_GOODS is present in `serviceTypes`. */
   dangerousGoodsDetail: Maybe<ZonosDangerousGoodsDetail>;
+  /** Details for a package containing dry ice. Required if DRY_ICE is present in `serviceTypes`. */
+  dryIceDetail: Maybe<ZonosDryIceDetail>;
   /** A unique identifier for this ShipmentCarton */
   id: Scalars['ID'];
   label: Maybe<ZonosLabel>;
@@ -16217,10 +21748,14 @@ export type ZonosShipmentCarton = ZonosNode & {
 };
 
 export type ZonosShipmentCartonInput = {
+  /** The declared value (carrier insurance) for this specific carton/package. Takes priority over the shipment-level declared value and is only forwarded to the carrier when `isDeclaredValue` is true. */
+  declaredValue?: InputMaybe<Scalars['Decimal']>;
   /** The measurement units of the height, length and width for the `ShipmentCarton`'s `Carton` */
   dimensionalUnit: ZonosDimensionalUnitCode;
   /** The numeric height of the `ShipmentCarton`. */
   height?: InputMaybe<Scalars['Decimal']>;
+  /** Whether the contents value of this carton is being declared for carrier insurance purposes. */
+  isDeclaredValue?: InputMaybe<Scalars['Boolean']>;
   /** The list of `Item`s included in this `ShipmentCarton`. Optional when providing cartons purely for packaging type information. */
   items?: InputMaybe<Array<ZonosShipmentCartonItemInput>>;
   /** The numeric length of the `ShipmentCarton`. */
@@ -16274,6 +21809,8 @@ export type ZonosShipmentCartonSpecialServiceDetailInput = {
   batteryDetail?: InputMaybe<ZonosBatteryDetailInput>;
   /** Details for a package containing dangerous goods. Required if DANGEROUS_GOODS is present in `serviceTypes`. */
   dangerousGoodsDetail?: InputMaybe<ZonosDangerousGoodsDetailInput>;
+  /** Details for a package containing dry ice. Required if DRY_ICE is present in `serviceTypes`. */
+  dryIceDetail?: InputMaybe<ZonosDryIceDetailInput>;
   /** List of `ShipmentCartonSpecialService` options to apply at the package level. */
   serviceTypes?: InputMaybe<Array<ZonosShipmentCartonSpecialService>>;
   /** Signature option type to apply at the package level. Required if SIGNATURE_OPTION is present in `serviceTypes`. */
@@ -16311,6 +21848,8 @@ export type ZonosShipmentConsolidation = {
 };
 
 export type ZonosShipmentConsolidationCarrier =
+  /** Australia Post lodgement consolidation. Closes via PUT /shipping/v1/orders to create an order and produce the PDF Order Summary (paper manifest). */
+  | 'AUSTRALIA_POST'
   | 'CANADA_POST'
   /** Japan Post deferred-payment consolidation. Closes via Code 61 to produce a dispatch slip plus bundled customer/post-office copies. */
   | 'JAPAN_POST';
@@ -16355,10 +21894,19 @@ export type ZonosShipmentConsolidationFilter = {
   status?: InputMaybe<ZonosShipmentConsolidationStatus>;
 };
 
+export type ZonosShipmentConsolidationRemoveShipmentsInput = {
+  /** ID of the `ShipmentConsolidation` to remove `Shipment`s from. */
+  id: Scalars['ID'];
+  /** IDs of the `Shipment`s to remove. IDs that are not members of this consolidation are rejected. */
+  shipmentIds: Array<Scalars['ID']>;
+};
+
 export type ZonosShipmentConsolidationStatus =
   | 'CLOSED'
   | 'MANIFEST_CREATED'
-  | 'OPEN';
+  | 'OPEN'
+  /** Abandoned before being lodged with the carrier. Reachable only from `OPEN`. Member `Shipment`s are detached and free to join another consolidation. This is a Zonos-side state: no carrier is notified, because a voided consolidation never reached one. */
+  | 'VOIDED';
 
 export type ZonosShipmentConsolidationStatusTransition = {
   __typename?: 'ShipmentConsolidationStatusTransition';
@@ -16380,6 +21928,18 @@ export type ZonosShipmentConsolidationUpdateInput = {
   /** Desired status for the `ShipmentConsolidation`. Should be null unless the consolidation should be closed. */
   status?: InputMaybe<ZonosShipmentConsolidationStatus>;
 };
+
+export type ZonosShipmentContentsType =
+  /** Commercial goods sold between businesses (BtoB). Maps to Japan Post pkgType 3 in LabelDgs. */
+  | 'COMMERCIAL_GOODS'
+  | 'COMMERCIAL_SAMPLE'
+  | 'DOCUMENTS'
+  /** E-commerce goods sold to a consumer (BtoC). Maps to Japan Post pkgType 2 in LabelDgs. */
+  | 'ECOMMERCE_GOODS'
+  | 'GIFT'
+  | 'OTHER'
+  | 'RETURNED_GOODS'
+  | 'SALE_OF_GOODS';
 
 export type ZonosShipmentCreateInput = {
   /** The booking number for freight shipments */
@@ -16432,10 +21992,16 @@ export type ZonosShipmentCreateWithTrackingInput = {
 export type ZonosShipmentCreateWorkflowInput = {
   /** The booking number for freight shipments */
   bookingNumber?: InputMaybe<Scalars['String']>;
+  /** The type of contents in the shipment package */
+  contentsType?: InputMaybe<ZonosShipmentContentsType>;
   /** The declared value (insurance) of the shipment */
   declaredValue?: InputMaybe<Scalars['Decimal']>;
+  /** When set with `declaredValue`, the declared value is the explicit amount supplied here, capped at the order's item subtotal in this currency (read from `amountSubtotalsDetails`); no cap is applied when the order has no item subtotal in this currency. When omitted, the legacy behavior applies (declared value computed from the order's items). */
+  declaredValueCurrencyCode?: InputMaybe<ZonosCurrencyCode>;
   /** Exemption code for shipments requiring an ITN */
   exemption?: InputMaybe<Scalars['String']>;
+  /** Optional Japan Post deferred-payment (later-pay) customer number, in the hyphen-formatted form NNNNNNNNNN-NNNNNN-NNNNNNNNNN-NNNNNN. When provided for a standalone Japan Post shipment, overrides the automatic LATER_PAY_NUMBER lookup. Ignored for other carriers and for shipments that are part of a ShipmentConsolidation. */
+  externalAccountNumber?: InputMaybe<Scalars['String']>;
   /** IDs of fulfilled order items. When provided, only cartons where all items are fulfilled will have labels generated. Used for partial kit fulfillment. */
   fulfilledItemIds?: InputMaybe<Array<Scalars['String']>>;
   /** Optional ID of the `FulfillmentCenter` this Shipment is being fulfilled from. */
@@ -16478,6 +22044,13 @@ export type ZonosShipmentCreateWorkflowInput = {
   trackingNumbers?: InputMaybe<Array<Scalars['String']>>;
 };
 
+/** Which way the goods are moving. Orthogonal to `ShipmentType`, which describes whether the movement crosses a customs border. */
+export type ZonosShipmentDirection =
+  /** Goods moving from the merchant to the customer. The default for every Shipment. */
+  | 'OUTBOUND'
+  /** Goods moving from the customer back to the merchant. */
+  | 'RETURN';
+
 export type ZonosShipmentDocumentType =
   | 'CUSTOMS_DOCUMENTS'
   | 'LABELS'
@@ -16512,6 +22085,8 @@ export type ZonosShipmentFilter = {
   destinationAdmin1?: InputMaybe<Scalars['String']>;
   /** Filter by destination country code */
   destinationCountryCode?: InputMaybe<ZonosCountryCode>;
+  /** Omitting this returns both directions. Pass `OUTBOUND` when reasoning about fulfillment. */
+  direction?: InputMaybe<ZonosShipmentDirection>;
   /** The ID of the `Order` this Shipment belongs to */
   orderId?: InputMaybe<Scalars['ID']>;
   /** Fuzzy search query - searches across tracking numbers, order IDs, customer names, addresses, service levels, and countries */
@@ -16749,6 +22324,8 @@ export type ZonosShipmentRating = {
   amount: Scalars['Decimal'];
   /** Subtotal amounts of how the ShipmentRating amount was calculated. */
   amountSubtotals: ZonosShipmentRatingSubtotals;
+  /** The currency the duty/tax payer's carrier account is billed in. Used only to determine the carrier currency-conversion fee during landed cost calculation; it does not affect the rating amount. Null when not supplied on the request. */
+  carrierAccountCurrency: Maybe<ZonosCurrencyCode>;
   /** When this ShipmentRating was created. */
   createdAt: Scalars['DateTime'];
   /** The user who created the ShipmentRating */
@@ -16860,6 +22437,8 @@ export type ZonosShipmentRatingCalculateWorkflowInput = {
   currencyCode?: InputMaybe<ZonosCurrencyCode>;
   /** The presentment currency for checkout quotes */
   currencyCodePresentment?: InputMaybe<ZonosCurrencyCode>;
+  /** `RETURN` drops carriers that cannot produce a return label, so a merchant is never offered an option that fails at label creation. Rates are unchanged — the same profiles apply either way. */
+  direction?: InputMaybe<ZonosShipmentRatingDirection>;
   /** Specifies what profiles to be used for rating. ZONE is the default and will only return rates for profiles in the corresponding `ShippingZone` */
   rateType?: InputMaybe<ZonosShipmentRatingRateType>;
   /** The source of the `ShipmentRating` */
@@ -16905,6 +22484,8 @@ export type ZonosShipmentRatingConnection = {
 export type ZonosShipmentRatingCreateWorkflowInput = {
   /** The amount for the `ShipmentRating`. */
   amount: Scalars['Decimal'];
+  /** The currency the duty/tax payer's carrier account is billed in. Used only to determine the carrier currency-conversion fee during landed cost calculation; it does not affect the rating amount. Optional; falls back to the organization default when omitted. */
+  carrierAccountCurrency?: InputMaybe<ZonosCurrencyCode>;
   /** The currency this `ShipmentRating` price amount is in. */
   currencyCode: ZonosCurrencyCode;
   /** The customer facing display name of the `ShipmentRating`. */
@@ -16923,6 +22504,13 @@ export type ZonosShipmentRatingDetail = {
   /** The type of fee that is being broken down as part of the `ShipmentRating`. */
   type: ZonosShipmentAmountType;
 };
+
+/** Which way the goods move for the quote being requested. Qualifies the request, not the profile — profiles are shared across directions, and a return is priced from the same rate charts as an outbound shipment. Do not add this to `ShippingProfile`: every existing profile would become outbound-only and return quotes would silently match nothing. `RETURN` narrows the result to carriers that can produce a return label. `OUTBOUND` changes nothing. */
+export type ZonosShipmentRatingDirection =
+  /** Goods moving to the customer. The default for every quote. */
+  | 'OUTBOUND'
+  /** Goods moving back from the customer. */
+  | 'RETURN';
 
 export type ZonosShipmentRatingEdge = {
   __typename?: 'ShipmentRatingEdge';
@@ -17042,6 +22630,8 @@ export type ZonosShipmentReference = {
 export type ZonosShipmentReferenceInput = {
   /** Certificate number for customs */
   certificateNumber?: InputMaybe<Scalars['String']>;
+  /** Optional merchant/sender reference to apply on the label (e.g. Japan Post senderCstRfrNum, FedEx customer reference) */
+  customerReference?: InputMaybe<Scalars['String']>;
   /** Customs or invoice remarks */
   customsRemarks?: InputMaybe<Scalars['String']>;
   /** Optional merchant-provided invoice number */
@@ -17061,6 +22651,21 @@ export type ZonosShipmentRefundStatus =
   | 'NOT_APPLICABLE'
   | 'NOT_ELIGIBLE_FOR_REFUND';
 
+export type ZonosShipmentReturnCreateWorkflowInput = {
+  /** Whether to buy the return `Label` in this same request. Set false to buy it later, in which case the shipment has neither a label nor tracking until `labelCreate` runs against it. */
+  generateLabel?: InputMaybe<Scalars['Boolean']>;
+  /** The optional label specifications for the return `Label` to be generated */
+  labelSpec?: InputMaybe<ZonosLabelSpecInput>;
+  /** The `Order` the return belongs to. */
+  orderId: Scalars['ID'];
+  /** Optional references to be added on the Label and CI */
+  references?: InputMaybe<ZonosShipmentReferenceInput>;
+  /** The `Root` the return was quoted against. Supplies the parties, items and cartons, so the parcel ships against what was priced. On a return the `ORIGIN` party is the customer and the `DESTINATION` is wherever returns are received. That reversal belongs to whoever creates the parties; it is not inferred here. */
+  rootId: Scalars['ID'];
+  /** ID or `code` of the `ServiceLevel` for the return. Required: a return has no landed cost to resolve one from, and the order's rating priced the outbound service, not this one. */
+  serviceLevel: Scalars['String'];
+};
+
 export type ZonosShipmentSearchBackfillInput = {
   /** Number of shipments to process per batch. Default: 100 */
   batchSize?: InputMaybe<Scalars['Int']>;
@@ -17068,7 +22673,7 @@ export type ZonosShipmentSearchBackfillInput = {
   forceRebackfill?: InputMaybe<Scalars['Boolean']>;
   /** Maximum number of shipments to process. Null for all. */
   maxShipments?: InputMaybe<Scalars['Int']>;
-  /** If true, only processes shipments that have missing search fields (tracking, service level, customer name, country, address). Default: false */
+  /** If true, only processes shipments that have missing search fields (tracking, service level, customer name, country, address, or order number on a shipment that has an order). Default: false */
   onlyMissingSearchFields?: InputMaybe<Scalars['Boolean']>;
   /** Optional: Filter by specific organization ID. Null for all organizations. */
   organizationId?: InputMaybe<Scalars['String']>;
@@ -17247,7 +22852,7 @@ export type ZonosShippingRateAmount = {
   currencyCode: ZonosCurrencyCode;
   /** The inclusive maximum amount that applies to the given rate. */
   maxUnit: Maybe<Scalars['Decimal']>;
-  /** The exclusive minimum amount that applies to the given rate. */
+  /** The exclusive minimum amount that applies to the given rate. A minimum of 0 also matches an amount of exactly 0. */
   minUnit: Maybe<Scalars['Decimal']>;
   /** The `currencyCode` that defines the min/max values. */
   unit: ZonosCurrencyCode;
@@ -17282,7 +22887,7 @@ export type ZonosShippingRateWeight = {
   currencyCode: ZonosCurrencyCode;
   /** The inclusive maximum weight that applies to the given rate. */
   maxUnit: Maybe<Scalars['Decimal']>;
-  /** The exclusive minimum weight that applies to the given rate. */
+  /** The exclusive minimum weight that applies to the given rate. A minimum of 0 also matches a weight of exactly 0. */
   minUnit: Maybe<Scalars['Decimal']>;
   /** The type of weight associated with the `ShippingRate`. */
   unit: ZonosWeightUnitCode;
@@ -17722,8 +23327,11 @@ export type ZonosStoreFeeRuleDetailCategoryIdCreateType =
   | 'CHECKOUT_GUARANTEE_ORDER_LEGACY'
   | 'CHECKOUT_GUARANTEE_PERCENT'
   | 'COD'
+  | 'COLLECT_GUARANTEE_ORDER'
+  | 'COLLECT_GUARANTEE_PERCENT'
   | 'COLLECT_ORDER'
   | 'COLLECT_PERCENT'
+  | 'COLLECT_TRANSACTION_ORDER'
   | 'COUNTRY'
   | 'CROSS_DOCK_BUFFER'
   | 'CURRENCY_CONVERSION_FEE'
@@ -17798,11 +23406,14 @@ export type ZonosStripeSubscriptionCharge = ZonosReconciliationCharge & {
   zonosStripeCharge: ZonosZonosStripeCharge;
 };
 
-export type ZonosSubscriptionInterval =
-  | 'DAILY'
-  | 'MONTHLY'
-  | 'WEEKLY'
-  | 'YEARLY';
+/** A plausible alternative category from the organization's category universe. */
+export type ZonosSuggestedCategory = {
+  __typename?: 'SuggestedCategory';
+  /** The suggested category hierarchy (root → leaf). */
+  category: Array<Scalars['String']>;
+  /** The model's probability that this is the best-fit category, from its choice log-probabilities (sorted descending). */
+  confidence: Scalars['Decimal'];
+};
 
 /** Represents a tax amount on a `LandedCost` quote */
 export type ZonosTax = {
@@ -17962,6 +23573,34 @@ export type ZonosTaxMethodType =
   | 'DOMESTIC_LCG'
   | 'SELLER_OF_RECORD';
 
+/** A GBIF backbone kingdom a taxon typeahead can be scoped to (see taxonSuggest). */
+export type ZonosTaxonKingdom =
+  /** Animals (e.g. FWS wildlife questions). */
+  | 'ANIMALIA'
+  /** Fungi (e.g. APHIS questions for mushrooms or fungal specimens). */
+  | 'FUNGI'
+  /** Plants (e.g. Lacey/APL questions). */
+  | 'PLANTAE';
+
+/** Optional scoping for a taxon typeahead (see taxonSuggest). */
+export type ZonosTaxonSuggestFilter = {
+  /** The genus already answered, for the species half of a genus/species question: `term` is then read as an epithet in this genus alone. Null searches unscoped, as does a genus absent from the backbone. */
+  genus?: InputMaybe<Scalars['String']>;
+  /** Kingdoms to restrict suggestions to. Null or empty searches every kingdom (as does listing them all) — for questions whose kingdom is decided later by category (e.g. APHIS); a single kingdom scopes the search (e.g. PLANTAE for Lacey/APL, ANIMALIA for FWS wildlife). */
+  kingdoms?: InputMaybe<Array<ZonosTaxonKingdom>>;
+};
+
+/** A backbone taxonomy match offered as a genus/species typeahead suggestion (see taxonSuggest). */
+export type ZonosTaxonSuggestion = {
+  __typename?: 'TaxonSuggestion';
+  /** Vernacular/common name; null when the backbone knows none. */
+  commonName: Maybe<Scalars['String']>;
+  genus: Scalars['String'];
+  /** The binomial 'Genus species', for display. */
+  scientificName: Scalars['String'];
+  species: Scalars['String'];
+};
+
 export type ZonosTermEndAction =
   /** Charge the customer at the end of the term */
   | 'CHARGE'
@@ -18011,6 +23650,21 @@ export type ZonosThirdPartyAccountType =
   | 'FEDEX'
   | 'UPS'
   | 'USPS';
+
+/** A registered FDA human cell and tissue establishment offered as a manufacturer typeahead suggestion (see tissueEstablishmentSuggest). */
+export type ZonosTissueEstablishmentSuggestion = {
+  __typename?: 'TissueEstablishmentSuggestion';
+  /** State or province; HCTERS publishes one for US sites only. */
+  administrativeAreaCode: Maybe<Scalars['String']>;
+  /** FDA Establishment Identifier — the value HRN is filed with. HCTERS publishes no separate registration number. */
+  fdaEstablishmentId: Scalars['String'];
+  /** The establishment's name as FDA registers it. */
+  firmName: Scalars['String'];
+  /** City of the registered site — with the postal code it is what tells a firm's several sites apart. */
+  locality: Maybe<Scalars['String']>;
+  /** Postal code of the registered site. */
+  postalCode: Maybe<Scalars['String']>;
+};
 
 export type ZonosTracking = ZonosNode & {
   __typename?: 'Tracking';
@@ -18099,13 +23753,6 @@ export type ZonosTrackingDetails = {
   /** The status history of the tracking number. */
   statusHistory: Array<ZonosTrackingStatus>;
 };
-
-export type ZonosTrackingEventTypeCode =
-  | 'CANCELED'
-  | 'IN_TRANSIT'
-  | 'OUT_FOR_DELIVERY'
-  | 'PICKED_UP'
-  | 'PRE_TRANSIT';
 
 export type ZonosTrackingInput = {
   /** The tracking number */
@@ -18314,65 +23961,6 @@ export type ZonosUploadErrors = {
   sku: Maybe<Scalars['String']>;
 };
 
-export type ZonosUsage = {
-  __typename?: 'Usage';
-  /** The number of usages allowed for the organization. */
-  allotment: Scalars['Int'];
-  /** The date and time the usage event was archived. */
-  archivedAt: Maybe<Scalars['DateTime']>;
-  /** The organization that the usage event is associated with. */
-  billingCompany: Scalars['ID'];
-  /** The usage count */
-  count: Scalars['Int'];
-  /** When the usage was created. */
-  createdAt: Scalars['DateTime'];
-  /** The user who created the usage event. */
-  createdBy: Scalars['ID'];
-  /** Unique identifier for the usage event. */
-  id: Scalars['ID'];
-  /** The subscription interval for the usage event. */
-  interval: ZonosSubscriptionInterval;
-  /** The api source of the usage event. */
-  type: ZonosUsageType;
-  /** When the usage was updated */
-  updatedAt: Scalars['DateTime'];
-  /** The user who updated the usage event. */
-  updatedBy: Scalars['ID'];
-  /** The date and time the usage event is valid until. */
-  validUntil: Scalars['DateTime'];
-};
-
-export type ZonosUsageConnection = {
-  __typename?: 'UsageConnection';
-  edges: Array<ZonosUsageEdge>;
-  pageInfo: Maybe<ZonosPageInfo>;
-  totalCount: Scalars['Int'];
-};
-
-export type ZonosUsageEdge = {
-  __typename?: 'UsageEdge';
-  cursor: Scalars['String'];
-  node: ZonosUsage;
-};
-
-export type ZonosUsageFilter = {
-  allotment?: InputMaybe<Scalars['Int']>;
-  billingCompany?: InputMaybe<Scalars['ID']>;
-};
-
-export type ZonosUsageType =
-  | 'CARTON'
-  | 'CATALOG'
-  | 'CLASSIFY'
-  | 'LABEL'
-  | 'LANDED_COST'
-  | 'ORDER'
-  | 'RESTRICT'
-  | 'RULE'
-  | 'SHIPMENT'
-  | 'SHIPMENT_RATING'
-  | 'USER';
-
 export type ZonosValidatedItem = {
   __typename?: 'ValidatedItem';
   /** The input item data provided by the user */
@@ -18566,6 +24154,13 @@ export type ZonosValueValidationEdge = {
   node: ZonosValueValidation;
 };
 
+export type ZonosVendorAdditionalUserInput = {
+  /** The access level granted to the user for the vendor organization. */
+  accessLevel?: InputMaybe<ZonosVendorUserAccessLevel>;
+  /** The email of the user. */
+  email: Scalars['String'];
+};
+
 export type ZonosVendorAddressInput = {
   /** `AccountAddress` state */
   administrativeArea?: InputMaybe<Scalars['String']>;
@@ -18581,6 +24176,12 @@ export type ZonosVendorAddressInput = {
   postalCode?: InputMaybe<Scalars['String']>;
 };
 
+export type ZonosVendorUserAccessLevel =
+  /** The user has the Admin role for the vendor organization. */
+  | 'ADMIN'
+  /** The user has the Member role for the vendor organization. */
+  | 'MEMBER';
+
 export type ZonosVendorUserInput = {
   /** The email of the root user on the account. */
   email: Scalars['String'];
@@ -18594,40 +24195,6 @@ export type ZonosVisibilityCode =
   | 'HIDE'
   | 'OPTIONAL'
   | 'REQUIRED';
-
-export type ZonosVolumeUnitCode =
-  | 'BARREL_PETROLEUM'
-  | 'BUSHEL_UK'
-  | 'BUSHEL_US_DRY'
-  | 'CENTILITER_CL'
-  | 'CUBIC_CENTIMETER'
-  | 'CUBIC_DECIMETER'
-  | 'CUBIC_FOOT'
-  | 'CUBIC_INCH'
-  | 'CUBIC_METER'
-  | 'CUBIC_MILLIMETER'
-  | 'CUBIC_YARD'
-  | 'DECALITER_DAL'
-  | 'DECILITER'
-  | 'FLUID_DRAM_FL_DR'
-  | 'FLUID_OUNCE_FL_OZ'
-  | 'FLUID_OUNCE_UK'
-  | 'GALLON_FLUID'
-  | 'GALLON_UK'
-  | 'GILL_GI'
-  | 'HECTOLITER'
-  | 'KILOLITER'
-  | 'LITER'
-  | 'MICROLITER'
-  | 'MILLILITER_ML'
-  | 'MINIM_MIN'
-  | 'PECK_US_DRY'
-  | 'PINT_FLUID'
-  | 'PINT_UK'
-  | 'PINT_US_DRY'
-  | 'QUART_FLUID'
-  | 'QUART_UK'
-  | 'QUART_US_DRY';
 
 export type ZonosWcoVersion =
   | 'WCO_1997'
@@ -18733,6 +24300,8 @@ export type ZonosWebhookLog = {
   organizationId: Scalars['ID'];
   /** The request body sent to the webhook url. */
   request: Scalars['String'];
+  /** A short description of the delivery error, when the delivery failed. */
+  response: Maybe<Scalars['String']>;
   /** The http response status code. */
   responseStatus: Maybe<Scalars['Int']>;
   /** The type of webhook. */
@@ -18770,11 +24339,34 @@ export type ZonosWebhookStatus =
   | 'DISABLED'
   | 'ENABLED';
 
+export type ZonosWebhookTestComplianceCollectRequestInput = {
+  /** The catalog item to open a test questionnaire session for, with its per-shipment questions. */
+  catalogItemId: Scalars['ID'];
+};
+
+export type ZonosWebhookTestSendInput = {
+  /** Test data for `COMPLIANCE_COLLECT_REQUEST`. Required when `type` is `COMPLIANCE_COLLECT_REQUEST`. */
+  complianceCollectRequest?: InputMaybe<ZonosWebhookTestComplianceCollectRequestInput>;
+  /** The type of webhook to send. The matching type-specific field must be set. */
+  type: ZonosWebhookType;
+};
+
+export type ZonosWebhookTestSendResult = {
+  __typename?: 'WebhookTestSendResult';
+  /** The id the test webhook was sent for. For `COMPLIANCE_COLLECT_REQUEST`, the questionnaire session id to read and answer. */
+  referenceId: Scalars['ID'];
+  /** The type of webhook that was sent. */
+  type: ZonosWebhookType;
+};
+
 export type ZonosWebhookType =
   | 'COLLECT_EMAIL_SENT'
+  | 'COLLECT_EMAIL_SENT_FAILED'
   | 'COLLECT_PAYMENT_FAILED'
+  | 'COLLECT_PAYMENT_LINK_EXPIRED'
   | 'COLLECT_PAYMENT_LINK_OPENED'
   | 'COLLECT_PAYMENT_SUCCEEDED'
+  | 'COMPLIANCE_COLLECT_REQUEST'
   | 'INCLUSIVE_PRICE_CONFIGURATION_CHANGED'
   | 'INCLUSIVE_PRICE_CONFIGURATION_CREATED'
   | 'INCLUSIVE_PRICE_CONFIGURATION_DELETED'
@@ -18783,10 +24375,15 @@ export type ZonosWebhookType =
   | 'INVENTORY_CHECK'
   | 'INVENTORY_REFUND'
   | 'IP_SETTING_STATUS_CHANGED'
+  | 'LANDED_COST_COMPLIANCE_READY'
   /** Any change on this Enum must also be applied on webhook-client/src/main/java/com/zonos/webhookclient/wrappers/WebhookType.java */
   | 'ORDER_CANCELED'
   | 'ORDER_COMBINED'
   | 'ORDER_CREATED'
+  | 'ORDER_PAYOUT_DETAILS_READY'
+  | 'ORDER_RETURN_COMPLETED'
+  | 'ORDER_RETURN_CREATED'
+  | 'ORDER_RETURN_STATUS_CHANGED'
   | 'ORDER_SHIPPING'
   | 'ORDER_STATUS_CHANGED'
   | 'ORDER_UPDATED'
@@ -18822,8 +24419,23 @@ export type ZonosWeightEstimateInput = {
   categories?: InputMaybe<Array<Scalars['String']>>;
   /** This is the full description associated with an item. */
   description?: InputMaybe<Scalars['String']>;
+  /** The material composition of an item. */
+  material?: InputMaybe<Scalars['String']>;
   /** The product name or short description. */
   name: Scalars['String'];
+  /** The unit of measure the weight estimate should be returned in. */
+  unit: ZonosWeightUnitCode;
+};
+
+/** A `WeightEstimateRange` resource represents the confidence band of a product's weight estimate. */
+export type ZonosWeightEstimateRange = {
+  __typename?: 'WeightEstimateRange';
+  /** The upper bound of the confidence band (in the estimation's `unit`). */
+  high: Scalars['Decimal'];
+  /** The lower bound of the confidence band (in the estimation's `unit`). */
+  low: Scalars['Decimal'];
+  /** The confidence band width, typically set to 0.95 (2.5-97.5% confidence bounds). */
+  width: Scalars['Decimal'];
 };
 
 /** A `WeightEstimation` resource represents the inferred weight estimate of a product. */
@@ -18835,31 +24447,50 @@ export type ZonosWeightEstimation = {
   categories: Array<Scalars['String']>;
   /** When this `WeightEstimation` was created. */
   createdAt: Scalars['DateTime'];
+  /** The user who created the `WeightEstimation`. */
+  createdBy: Scalars['ID'];
   /** This is the full description associated with an item. */
   description: Scalars['String'];
   /** A unique identifier for the `WeightEstimation`. */
   id: Scalars['ID'];
-  /** The median weight estimate in kilograms. */
-  medianKg: Scalars['Decimal'];
+  /** The material composition of an item. */
+  material: Scalars['String'];
   /** The model ID used to generate the weight estimation. */
   modelId: Scalars['String'];
   /** The product name or short description. */
   name: Scalars['String'];
-  /** Log-normal sigma — higher values indicate more uncertainty. Flag if > 1.0. */
-  sigma: Scalars['Decimal'];
-  /** The 80% confidence band for the weight estimate. */
-  weightRange: ZonosWeightRange;
+  /** The `Organization` associated with the request. */
+  organization: Scalars['ID'];
+  /** The unit of measure of `weight` and the range bounds (matches input unit). */
+  unit: ZonosWeightUnitCode;
+  /** When this `WeightEstimation` was most recently updated. */
+  updatedAt: Scalars['DateTime'];
+  /** The user who most recently updated the `WeightEstimation`. */
+  updatedBy: Scalars['ID'];
+  /** The best-guess estimated weight of the product (in the requested `unit`). */
+  weight: Scalars['Decimal'];
+  /** The confidence bands of the weight estimate. */
+  weightEstimateRange: ZonosWeightEstimateRange;
 };
 
-/** A `WeightRange` resource represents an 80% confidence band for a weight estimate. */
-export type ZonosWeightRange = {
-  __typename?: 'WeightRange';
-  /** The confidence percentage (80). */
-  confidencePct: Scalars['Int'];
-  /** The upper bound of the weight confidence band in kilograms. */
-  highKg: Scalars['Decimal'];
-  /** The lower bound of the weight confidence band in kilograms. */
-  lowKg: Scalars['Decimal'];
+/** Cursor-based pagination for `WeightEstimation`. */
+export type ZonosWeightEstimationConnection = {
+  __typename?: 'WeightEstimationConnection';
+  /** A list of `WeightEstimationEdge`. */
+  edges: Array<ZonosWeightEstimationEdge>;
+  /** Pagination information about the connection. */
+  pageInfo: ZonosPageInfo;
+  /** The total number of `WeightEstimation` items. */
+  totalCount: Scalars['Int'];
+};
+
+/** Cursor-based pagination for `WeightEstimation`. */
+export type ZonosWeightEstimationEdge = {
+  __typename?: 'WeightEstimationEdge';
+  /** A string used to identify this object in the current pagination connection. */
+  cursor: Scalars['String'];
+  /** The object located at this `WeightEstimation`. */
+  node: ZonosWeightEstimation;
 };
 
 export type ZonosWeightUnitCode =
