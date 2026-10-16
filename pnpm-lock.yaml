@@ -10,6 +10,7 @@ overrides:
   minimatch@>=9.0.0 <9.0.6: '>=9.0.6'
   lodash@>=4.0.0 <=4.17.23: '>=4.17.24'
   immutable@<3.8.3: '>=3.8.3'
+  immutable@>=5.0.0 <5.1.8: '>=5.1.8'
   ws@>=8.0.0 <8.17.1: '>=8.17.1'
   esbuild: '>=0.28.1'
   '@graphql-codegen/plugin-helpers@3>@graphql-tools/utils': '>=12.0.1'
@@ -19,6 +20,14 @@ overrides:
   '@graphql-codegen/visitor-plugin-common@2>@graphql-tools/utils': '>=12.0.1'
   '@graphql-codegen/visitor-plugin-common@3>@graphql-tools/utils': '>=12.0.1'
   '@graphql-tools/relay-operation-optimizer@6>@graphql-tools/utils': '>=12.0.1'
+  '@vitest/mocker@>=2.1.0 <4.1.11': '>=4.1.11'
+  brace-expansion@<1.1.21: '>=1.1.21'
+  brace-expansion@>=2.0.0 <2.1.7: '>=2.1.7'
+  js-yaml@>=4.0.0 <4.3.2: '>=4.3.2'
+  shell-quote@<=1.8.4: '>=1.9.0'
+  postcss@<=8.5.22: '>=8.5.23'
+  nanoid@<3.3.18: '>=3.3.18'
+  browserslist@<=4.28.6: '>=4.28.7'
 
 importers:
 
@@ -2029,9 +2038,6 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  brace-expansion@1.1.21:
-    resolution: {integrity: sha512-9zeA+KLZNNzglF2TPKRQEDyx6Yby7daAkuy8MiPzpXPsYDWi/DRM8jmwUDxokQjYqBpv5DgPiwD4h4ZZSy1Ujw==}
-
   brace-expansion@2.1.7:
     resolution: {integrity: sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==}
 
@@ -2163,9 +2169,6 @@ packages:
 
   commondir@1.0.1:
     resolution: {integrity: sha512-W9pAhw0ja1Edb5GVdIF1mjZw/ASI0AlShXM83UUGe2DVr5TdAPEA1OA8m/g8zWp9x6On7gqufY+FatDbC3MDQg==}
-
-  concat-map@0.0.1:
-    resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
   concurrently@7.6.0:
     resolution: {integrity: sha512-BKtRgvcJGeZ4XttiDiNcFiRlxoAeZOseqUvyYRUp/Vtd+9p1ULmeoSqGsDA+2ivdeDFpqrJvGvmI+StKfKl5hw==}
@@ -4039,7 +4042,7 @@ packages:
     resolution: {integrity: sha512-t8wonIOdQyOjtPd2VktlBu6QjTVTks6v8bSi7kd0r2Vll8TK1JYDZtRRdbmCHOAMphkZgrzK+L+vXK4pyZ8t4A==}
     hasBin: true
     peerDependencies:
-      browserslist: '>= 4.21.0'
+      browserslist: '>=4.28.7'
 
   upper-case-first@2.0.2:
     resolution: {integrity: sha512-514ppYHBaKwfJRK/pNC6c/OxfGa0obSnAl106u97Ed0I625Nin96KAjttZF6ZL3e1XLtphxnqrOi9iWgm+u+bg==}
@@ -6518,11 +6521,6 @@ snapshots:
 
   baseline-browser-mapping@2.11.28: {}
 
-  brace-expansion@1.1.21:
-    dependencies:
-      balanced-match: 1.0.2
-      concat-map: 0.0.1
-
   brace-expansion@2.1.7:
     dependencies:
       balanced-match: 1.0.2
@@ -6685,8 +6683,6 @@ snapshots:
   common-tags@1.8.2: {}
 
   commondir@1.0.1: {}
-
-  concat-map@0.0.1: {}
 
   concurrently@7.6.0:
     dependencies:
@@ -7953,7 +7949,7 @@ snapshots:
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 1.1.21
+      brace-expansion: 5.0.12
 
   minimatch@8.0.7:
     dependencies:
